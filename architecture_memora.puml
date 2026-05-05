@@ -1,0 +1,188 @@
+@startuml
+title Diagramme de classes UML - Memora
+
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+
+package "Memora" {
+
+  package "Frontend\nReact - Interface utilisateur" {
+    class LoginPage
+    class DashboardPage
+    class CoursesPage
+    class FlashcardsPage
+    class QuizPage
+    class PlanningPage
+    class TodoPage
+
+    class Navbar
+    class Button
+    class Card
+    class Form
+
+    class ApiClient {
+      +sendRequest()
+      +getData()
+      +postData()
+    }
+  }
+
+  package "Backend\nDjango - Logique + API" {
+    class UsersModule {
+      +register()
+      +login()
+      +logout()
+    }
+
+    class CoursesModule {
+      +uploadPDF()
+      +extractText()
+    }
+
+    class FlashcardsModule {
+      +createFlashcard()
+      +updateFlashcard()
+      +deleteFlashcard()
+    }
+
+    class QuizzesModule {
+      +generateQuiz()
+      +calculateScore()
+    }
+
+    class PlanningModule {
+      +createPlanning()
+      +addStudySession()
+    }
+
+    class TodosModule {
+      +createTask()
+      +updateTask()
+      +deleteTask()
+    }
+
+    class ApiRoutes {
+      +defineRoutes()
+    }
+  }
+
+  package "AI\nGemini + traitement texte" {
+    class GeminiService {
+      +generateFlashcards(text)
+      +generateQuiz(text)
+    }
+
+    class Prompts {
+      +flashcardPrompt()
+      +quizPrompt()
+    }
+
+    class TextCleaning {
+      +cleanText(text)
+    }
+
+    class Chunking {
+      +splitText(text)
+    }
+  }
+
+  package "Database\nSQLite + schema BD" {
+    class User {
+      +id: int
+      +username: string
+      +email: string
+      +password: string
+    }
+
+    class Course {
+      +id: int
+      +title: string
+      +pdf_file: file
+      +extracted_text: text
+      +created_at: datetime
+    }
+
+    class Flashcard {
+      +id: int
+      +question: string
+      +answer: string
+      +difficulty: string
+      +created_by_ai: boolean
+    }
+
+    class Quiz {
+      +id: int
+      +title: string
+      +score: float
+      +created_at: datetime
+    }
+
+    class QuizQuestion {
+      +id: int
+      +question: string
+      +choices: list
+      +correct_answer: string
+    }
+
+    class StudySession {
+      +id: int
+      +date: date
+      +start_time: time
+      +end_time: time
+      +goal: string
+    }
+
+    class Task {
+      +id: int
+      +title: string
+      +completed: boolean
+      +due_date: date
+    }
+  }
+
+  package "Docs\nDocuments du projet" {
+    class CahierDesCharges
+    class UMLDocs
+    class TestsDocs
+    class ManuelUtilisateur
+    class ManuelExploitation
+    class RapportFinal
+  }
+}
+
+ApiClient --> ApiRoutes : appels HTTP
+
+ApiRoutes --> UsersModule
+ApiRoutes --> CoursesModule
+ApiRoutes --> FlashcardsModule
+ApiRoutes --> QuizzesModule
+ApiRoutes --> PlanningModule
+ApiRoutes --> TodosModule
+
+CoursesModule --> TextCleaning : nettoie le texte
+CoursesModule --> Chunking : découpe le texte
+CoursesModule --> GeminiService : envoie le texte
+
+GeminiService --> Prompts : utilise
+GeminiService --> Flashcard : génère
+GeminiService --> QuizQuestion : génère
+
+UsersModule --> User
+CoursesModule --> Course
+FlashcardsModule --> Flashcard
+QuizzesModule --> Quiz
+QuizzesModule --> QuizQuestion
+PlanningModule --> StudySession
+TodosModule --> Task
+
+User "1" -- "*" Course
+User "1" -- "*" Quiz
+User "1" -- "*" StudySession
+User "1" -- "*" Task
+
+Course "1" -- "*" Flashcard
+Course "1" -- "*" Quiz
+
+Quiz "1" -- "*" QuizQuestion
+
+@enduml
