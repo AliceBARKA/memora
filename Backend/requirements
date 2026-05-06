@@ -26,3 +26,6 @@ pydantic
 
 # Image handling (optional if needed)
 Pillow
+
+# AI
+google-genai
