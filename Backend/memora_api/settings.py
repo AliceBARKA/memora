@@ -42,6 +42,10 @@ INSTALLED_APPS = [
     "corsheaders",
 
     "ai_service",
+    
+    "courses",
+    "planning",
+    "todos",
 ]
 
 MIDDLEWARE = [

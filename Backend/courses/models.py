@@ -1,0 +1,40 @@
+from django.db import models
+from django.contrib.auth.models import User
+
+
+# Create your models here.
+class CoursePDF(models.Model):
+    title = models.CharField(max_length=255)
+    file = models.FileField(upload_to='course_pdfs/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    user = models.ForeignKey(User, on_delete = models.CASCADE, related_name='course_pdfs')
+
+
+    def __str__(self):
+        return self.title
+
+class Deck(models.Model):
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    user = models.ForeignKey(User, on_delete = models.CASCADE, related_name='decks')
+    CoursePDF = models.ForeignKey(CoursePDF, on_delete=models.CASCADE, related_name='decks')
+
+
+    def __str__(self):
+        return self.title
+    
+class Flashcard(models.Model):
+    question = models.TextField()
+    answer = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    deck = models.ForeignKey(Deck, on_delete=models.CASCADE, related_name='flashcards')
+    DIFFICULTY_LEVELS = [
+        ('easy','facile'),
+        ('medium','moyen'),
+        ('hard','difficile'),]
+    difficulty = models.CharField(max_length=10, choices=DIFFICULTY_LEVELS, default='medium')
+
+    def __str__(self):
+        return self.question[:50]  # Return the first 50 characters of the question for display purposes   
+    
