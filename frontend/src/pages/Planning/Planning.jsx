@@ -1,0 +1,558 @@
+import { useMemo, useState } from "react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Plus,
+  CalendarDays,
+  Clock3,
+  GripVertical,
+  Trash2,
+  X,
+  Pencil,
+  MapPin,
+} from "lucide-react";
+
+const HOURS = Array.from({ length: 18 }).map((_, i) => 6 + i);
+const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+const COLORS = ["#8B6CF6", "#60A5FA", "#34D399", "#FBBF24", "#F472B6"];
+
+function getMonday(date, weekOffset = 0) {
+  const d = new Date(date);
+  const dayIndex = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - dayIndex + weekOffset * 7);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function formatDateInput(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function parseDate(dateString) {
+  const [y, m, d] = dateString.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function getDayIndexFromDate(dateString) {
+  const d = parseDate(dateString);
+  return (d.getDay() + 6) % 7;
+}
+
+const currentMonday = getMonday(new Date());
+
+const initialEvents = [
+  {
+    id: 1,
+    title: "Révision cours",
+    date: formatDateInput(currentMonday),
+    startHour: 9,
+    endHour: 11,
+    location: "Bibliothèque",
+    description: "Revoir le chapitre et faire quelques exercices.",
+    color: "#8B6CF6",
+  },
+];
+
+function Planning() {
+  const [events, setEvents] = useState(initialEvents);
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [draggedId, setDraggedId] = useState(null);
+  const [hoverCell, setHoverCell] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [editingEvent, setEditingEvent] = useState(null);
+
+  const weekInfo = useMemo(() => {
+    const monday = getMonday(new Date(), weekOffset);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+
+    const format = (date) =>
+      date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+
+    return {
+      monday,
+      sunday,
+      label: `${format(monday)} — ${format(sunday)}`,
+    };
+  }, [weekOffset]);
+
+  const visibleEvents = events.filter((event) => {
+    const eventDate = parseDate(event.date);
+    return eventDate >= weekInfo.monday && eventDate <= weekInfo.sunday;
+  });
+
+  const totalHours = visibleEvents.reduce(
+    (sum, event) => sum + (event.endHour - event.startHour),
+    0
+  );
+
+  const openAddModal = () => {
+    setEditingEvent(null);
+    setShowModal(true);
+  };
+
+  const openEditModal = (event) => {
+    setEditingEvent(event);
+    setShowModal(true);
+  };
+
+  const saveEvent = (data) => {
+    if (editingEvent) {
+      setEvents((prev) =>
+        prev.map((event) =>
+          event.id === editingEvent.id ? { ...event, ...data } : event
+        )
+      );
+    } else {
+      setEvents((prev) => [...prev, { id: Date.now(), ...data }]);
+    }
+
+    setShowModal(false);
+    setEditingEvent(null);
+  };
+
+  const deleteEvent = (id) => {
+    setEvents((prev) => prev.filter((event) => event.id !== id));
+    setShowModal(false);
+    setEditingEvent(null);
+  };
+
+  const onDrop = (dayIndex, hour) => {
+    if (!draggedId) return;
+
+    const newDate = new Date(weekInfo.monday);
+    newDate.setDate(weekInfo.monday.getDate() + dayIndex);
+
+    setEvents((prev) =>
+      prev.map((event) => {
+        if (event.id !== draggedId) return event;
+
+        const duration = event.endHour - event.startHour;
+
+        return {
+          ...event,
+          date: formatDateInput(newDate),
+          startHour: hour,
+          endHour: hour + duration,
+        };
+      })
+    );
+
+    setDraggedId(null);
+    setHoverCell(null);
+  };
+
+  return (
+    <div className="p-8 max-w-[1500px] mx-auto text-[#1E293B]">
+      <header className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-6 mb-8">
+        <div>
+          <p className="text-xs font-extrabold uppercase tracking-wider text-[#8B6CF6]">
+            Calendrier
+          </p>
+
+          <h1 className="text-5xl font-extrabold tracking-tight mt-1">
+            Planning de révision
+          </h1>
+
+          <p className="text-slate-500 mt-2">
+            Organise tes événements par semaine.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="h-12 px-4 rounded-2xl bg-white border border-slate-200 flex items-center gap-3">
+            <button onClick={() => setWeekOffset((v) => v - 1)}>
+              <ChevronLeft className="text-slate-500" size={20} />
+            </button>
+
+            <span className="font-extrabold flex items-center gap-2">
+              <CalendarDays size={18} className="text-[#8B6CF6]" />
+              {weekInfo.label}
+            </span>
+
+            <button onClick={() => setWeekOffset((v) => v + 1)}>
+              <ChevronRight className="text-slate-500" size={20} />
+            </button>
+          </div>
+
+          <button
+            onClick={openAddModal}
+            className="h-12 px-5 rounded-2xl bg-[#8B6CF6] text-white font-bold flex items-center gap-2 shadow-[0_12px_25px_-12px_rgba(139,108,246,0.8)] hover:bg-[#7C3AED]"
+          >
+            <Plus size={20} />
+            Nouvel événement
+          </button>
+        </div>
+      </header>
+
+      <section className="grid md:grid-cols-3 gap-4 max-w-[700px] mb-8">
+        <MiniStat value={visibleEvents.length} label="Événements" color="#8B6CF6" />
+        <MiniStat value={`${totalHours}h`} label="Heures planifiées" color="#60A5FA" />
+        <MiniStat value={events.length} label="Total créés" color="#34D399" />
+      </section>
+
+      <section className="bg-white rounded-[32px] border border-slate-100 overflow-hidden shadow-sm">
+        <div
+          className="grid border-b border-slate-100"
+          style={{ gridTemplateColumns: "90px repeat(7, minmax(0, 1fr))" }}
+        >
+          <div className="p-4 text-xs font-extrabold uppercase tracking-wider text-slate-400">
+            Heure
+          </div>
+
+          {DAYS.map((day) => (
+            <div
+              key={day}
+              className="p-4 text-center font-extrabold border-l border-slate-100"
+            >
+              {day.slice(0, 3)}
+            </div>
+          ))}
+        </div>
+
+        <div
+          className="grid"
+          style={{ gridTemplateColumns: "90px repeat(7, minmax(0, 1fr))" }}
+        >
+          {HOURS.map((hour) => (
+            <div key={hour} className="contents">
+              <div className="border-t border-slate-100 p-3 text-sm text-slate-400 font-bold">
+                {hour}h
+              </div>
+
+              {DAYS.map((_, dayIndex) => {
+                const cellEvents = visibleEvents.filter(
+                  (event) =>
+                    getDayIndexFromDate(event.date) === dayIndex &&
+                    event.startHour === hour
+                );
+
+                const isHover =
+                  hoverCell?.day === dayIndex && hoverCell?.hour === hour;
+
+                return (
+                  <div
+                    key={`${dayIndex}-${hour}`}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setHoverCell({ day: dayIndex, hour });
+                    }}
+                    onDragLeave={() => setHoverCell(null)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      onDrop(dayIndex, hour);
+                    }}
+                    className={`relative min-h-[85px] border-t border-l border-slate-100 p-2 transition ${
+                      isHover ? "bg-[#8B6CF6]/10" : "bg-white"
+                    }`}
+                  >
+                    {cellEvents.map((event) => (
+                      <EventBlock
+                        key={event.id}
+                        event={event}
+                        onDragStart={() => setDraggedId(event.id)}
+                        onDragEnd={() => {
+                          setDraggedId(null);
+                          setHoverCell(null);
+                        }}
+                        onEdit={() => openEditModal(event)}
+                        onDelete={() => deleteEvent(event.id)}
+                      />
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {showModal && (
+        <EventModal
+          initialData={editingEvent}
+          defaultDate={formatDateInput(weekInfo.monday)}
+          onClose={() => {
+            setShowModal(false);
+            setEditingEvent(null);
+          }}
+          onSave={saveEvent}
+          onDelete={deleteEvent}
+        />
+      )}
+    </div>
+  );
+}
+
+function EventBlock({ event, onDragStart, onDragEnd, onEdit, onDelete }) {
+  const duration = event.endHour - event.startHour;
+
+  return (
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onClick={onEdit}
+      className="group relative rounded-2xl px-3 py-2 cursor-pointer overflow-hidden hover:scale-[1.01] transition"
+      style={{
+        background: `${event.color}18`,
+        borderLeft: `4px solid ${event.color}`,
+        minHeight: `${duration * 72}px`,
+      }}
+    >
+      <div className="flex items-start gap-2">
+        <GripVertical size={16} style={{ color: event.color }} />
+
+        <div className="min-w-0">
+          <h3
+            className="font-extrabold text-sm truncate"
+            style={{ color: event.color }}
+          >
+            {event.title}
+          </h3>
+
+          <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
+            <Clock3 size={13} />
+            {event.startHour}h–{event.endHour}h
+          </p>
+
+          {event.location && (
+            <p className="text-xs text-slate-400 flex items-center gap-1 mt-1 truncate">
+              <MapPin size={12} />
+              {event.location}
+            </p>
+          )}
+        </div>
+      </div>
+
+      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onEdit();
+          }}
+          className="w-7 h-7 rounded-xl bg-white text-[#8B6CF6] flex items-center justify-center"
+        >
+          <Pencil size={14} />
+        </button>
+
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="w-7 h-7 rounded-xl bg-white text-red-500 flex items-center justify-center"
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function EventModal({ initialData, defaultDate, onClose, onSave, onDelete }) {
+  const isEdit = Boolean(initialData);
+
+  const [title, setTitle] = useState(initialData?.title || "");
+  const [date, setDate] = useState(initialData?.date || defaultDate);
+  const [startHour, setStartHour] = useState(initialData?.startHour || 9);
+  const [endHour, setEndHour] = useState(initialData?.endHour || 10);
+  const [location, setLocation] = useState(initialData?.location || "");
+  const [description, setDescription] = useState(initialData?.description || "");
+  const [color, setColor] = useState(initialData?.color || "#8B6CF6");
+
+  const submit = (e) => {
+    e.preventDefault();
+
+    if (!title.trim()) return alert("Ajoute un titre.");
+    if (endHour <= startHour) {
+      alert("L’heure de fin doit être après l’heure de début.");
+      return;
+    }
+
+    onSave({
+      title: title.trim(),
+      date,
+      startHour,
+      endHour,
+      location,
+      description,
+      color,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <button
+        onClick={onClose}
+        className="absolute inset-0 bg-[#1E293B]/40 backdrop-blur-sm"
+      />
+
+      <form
+        onSubmit={submit}
+        className="relative w-full max-w-[520px] max-h-[92vh] overflow-y-auto hide-scrollbar bg-white rounded-[32px] p-6 shadow-2xl"
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-5 right-5 text-slate-400 hover:text-[#1E293B]"
+        >
+          <X size={22} />
+        </button>
+
+        <h2 className="text-3xl font-extrabold text-[#1E293B]">
+          {isEdit ? "Modifier l’événement" : "Nouvel événement"}
+        </h2>
+
+        <p className="text-slate-500 mt-1">
+          Planifie ton créneau de révision.
+        </p>
+
+        <div className="mt-4 space-y-3">
+          <Field label="Titre">
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Réviser les limites"
+              autoFocus
+              className="w-full h-12 rounded-2xl border border-slate-200 px-4 outline-none focus:ring-2 focus:ring-[#8B6CF6] focus:border-transparent"
+            />
+          </Field>
+
+          <Field label="Date">
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full h-12 rounded-2xl border border-slate-200 px-4 outline-none focus:ring-2 focus:ring-[#8B6CF6] focus:border-transparent"
+            />
+          </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Heure début">
+              <select
+                value={startHour}
+                onChange={(e) => setStartHour(Number(e.target.value))}
+                className="w-full h-12 rounded-2xl border border-slate-200 px-4 outline-none focus:ring-2 focus:ring-[#8B6CF6] focus:border-transparent"
+              >
+                {HOURS.map((h) => (
+                  <option key={h} value={h}>
+                    {h}h
+                  </option>
+                ))}
+              </select>
+            </Field>
+
+            <Field label="Heure fin">
+              <select
+                value={endHour}
+                onChange={(e) => setEndHour(Number(e.target.value))}
+                className="w-full h-12 rounded-2xl border border-slate-200 px-4 outline-none focus:ring-2 focus:ring-[#8B6CF6] focus:border-transparent"
+              >
+                {HOURS.map((h) => (
+                  <option key={h} value={h}>
+                    {h}h
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+
+          <Field label="Lieu">
+            <input
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="Bibliothèque, maison, salle B..."
+              className="w-full h-12 rounded-2xl border border-slate-200 px-4 outline-none focus:ring-2 focus:ring-[#8B6CF6] focus:border-transparent"
+            />
+          </Field>
+
+          <Field label="Description">
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Objectif de la séance..."
+              rows={3}
+              className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none resize-none focus:ring-2 focus:ring-[#8B6CF6] focus:border-transparent"
+            />
+          </Field>
+
+          <Field label="Couleur">
+            <div className="flex gap-3">
+              {COLORS.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setColor(c)}
+                  className={`w-10 h-10 rounded-full transition ${
+                    color === c
+                      ? "ring-4 ring-[#1E293B]/20 scale-110"
+                      : "hover:scale-105"
+                  }`}
+                  style={{ background: c }}
+                />
+              ))}
+            </div>
+          </Field>
+        </div>
+
+        <div className="mt-5 flex justify-between items-center gap-3">
+          {isEdit ? (
+            <button
+              type="button"
+              onClick={() => onDelete(initialData.id)}
+              className="h-12 px-5 rounded-2xl bg-red-50 text-red-500 font-bold hover:bg-red-100"
+            >
+              Supprimer
+            </button>
+          ) : (
+            <div />
+          )}
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-12 px-5 rounded-2xl text-slate-500 font-bold hover:bg-slate-50"
+            >
+              Annuler
+            </button>
+
+            <button
+              type="submit"
+              className="h-12 px-6 rounded-2xl bg-[#8B6CF6] text-white font-bold hover:bg-[#7C3AED] shadow-[0_12px_25px_-12px_rgba(139,108,246,0.8)]"
+            >
+              {isEdit ? "Enregistrer" : "Ajouter l’événement"}
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <label className="block">
+      <span className="block text-sm font-bold text-[#1E293B] mb-2">
+        {label}
+      </span>
+      {children}
+    </label>
+  );
+}
+
+function MiniStat({ value, label, color }) {
+  return (
+    <div className="bg-white rounded-3xl border border-slate-100 p-5 shadow-sm">
+      <h2 className="text-3xl font-extrabold" style={{ color }}>
+        {value}
+      </h2>
+      <p className="text-slate-500 font-bold text-sm mt-1">{label}</p>
+    </div>
+  );
+}
+
+export default Planning;
