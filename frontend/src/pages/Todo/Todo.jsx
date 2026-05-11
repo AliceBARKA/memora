@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-
+import {useEffect, useMemo, useState} from "react";
+import { getTodos, createTodo, updateTodo, deleteTodoApi } from "../../services/api";
 import {
   Plus,
   Search,
@@ -61,6 +61,30 @@ function Todo() {
 
   const [editingTodo, setEditingTodo] = useState(null);
 
+  useEffect(() => {
+    async function loadTodos() {
+      try {
+        const data = await getTodos();
+        setTodos(data);
+        const formatted = data.map((t) => ({ 
+          id: t.id,
+          title: t.title,
+          subject: t.subject,
+          priority: t.priority,
+          due: t.due,
+          done: t.done,
+          color:"#8B6CF6",
+        }));
+        setTodos(formatted);
+      }
+      catch (error) {
+        console.error("Erreur chargement todos:", error);
+      }
+    }
+
+    loadTodos();
+  }, []);
+
   const subjects = useMemo(() => {
     const unique = [...new Set(todos.map((t) => t.subject).filter(Boolean))];
     return unique.length > 0 ? unique : ["Général"];
@@ -85,25 +109,30 @@ function Todo() {
     };
   }, [todos]);
 
-  const addTodo = (e) => {
-    e.preventDefault();
 
-    if (!title.trim()) return;
+  const addTodo = async (e) => {
+  e.preventDefault();
 
-    const subjectName = subject.trim() || "Général";
+  if (!title.trim()) return;
 
-    const color =
-      todos.find((t) => t.subject.toLowerCase() === subjectName.toLowerCase())?.color ||
-      subjectColors[todos.length % subjectColors.length];
+  try {
+    const savedTodo = await createTodo({
+      title: title.trim(),
+      description: "",
+      status: "todo",
+      due_date: due || null,
+      priority,
+      revision_session: null,
+    });
 
     const newTodo = {
-      id: Date.now(),
-      title: title.trim(),
-      subject: subjectName,
-      priority,
-      due,
-      done: false,
-      color,
+      id: savedTodo.id,
+      title: savedTodo.title,
+      subject: "Général",
+      priority: savedTodo.priority,
+      due: savedTodo.due_date || "",
+      done: savedTodo.status === "done",
+      color: "#8B6CF6",
     };
 
     setTodos((prev) => [newTodo, ...prev]);
@@ -111,20 +140,44 @@ function Todo() {
     setSubject("");
     setPriority("medium");
     setDue("");
-  };
+  } catch (error) {
+    console.error(error);
+    alert("Erreur pendant l’ajout de la tâche.");
+  }
+};
 
-  const toggleTodo = (id) => {
+  const toggleTodo = async (id) => {
+  const todo = todos.find((t) => t.id === id);
+  if (!todo) return;
+
+  try {
+    const newStatus = todo.done ? "todo" : "done";
+
+    await updateTodo(id, {
+      status: newStatus,
+    });
+
     setTodos((prev) =>
-      prev.map((todo) =>
-        todo.id === id ? { ...todo, done: !todo.done } : todo
+      prev.map((t) =>
+        t.id === id ? { ...t, done: !t.done } : t
       )
     );
-  };
+  } catch (error) {
+    console.error(error);
+    alert("Erreur pendant la modification.");
+  }
+};
 
-  const deleteTodo = (id) => {
+  const deleteTodo = async (id) => {
+  try {
+    await deleteTodoApi(id);
     setTodos((prev) => prev.filter((todo) => todo.id !== id));
     setEditingTodo(null);
-  };
+  } catch (error) {
+    console.error(error);
+    alert("Erreur pendant la suppression.");
+  }
+};
 
   const saveEdit = (updatedTodo) => {
     setTodos((prev) =>
