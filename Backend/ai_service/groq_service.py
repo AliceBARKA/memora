@@ -75,3 +75,87 @@ Cours:
     content = response.choices[0].message.content
 
     return extract_json_array(content)
+
+def generate_summary_with_groq(text):
+    prompt = f"""
+Tu es un assistant pédagogique.
+
+Résume le cours suivant de manière claire et structurée.
+
+Contraintes:
+- garde les notions importantes
+- utilise des titres
+- explique simplement
+- ne rajoute pas d'informations inventées
+- réponds en français
+
+Cours:
+{text[:10000]}
+"""
+
+    response = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {
+                "role": "system",
+                "content": "Tu es un assistant pédagogique clair et structuré."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            },
+        ],
+        temperature=0.2,
+    )
+
+    return response.choices[0].message.content
+
+def generate_quiz_with_groq(flashcards):
+    prompt = f"""
+Tu es un assistant pédagogique.
+
+À partir des flashcards suivantes, génère un quiz QCM.
+
+Réponds UNIQUEMENT avec un JSON valide.
+Pas de markdown.
+Pas d'explication hors JSON.
+
+Format obligatoire:
+[
+  {{
+    "question": "...",
+    "choices": ["...", "...", "...", "..."],
+    "correct_answer": "...",
+    "explanation": "..."
+  }}
+]
+
+Contraintes:
+- 4 choix par question
+- une seule bonne réponse
+- correct_answer doit être exactement l'un des choix
+- questions claires
+- réponds en français
+
+Flashcards:
+{flashcards}
+"""
+
+    response = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {
+                "role": "system",
+                "content": "Tu réponds uniquement avec du JSON valide."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            },
+        ],
+        temperature=0.2,
+    )
+
+    content = response.choices[0].message.content
+
+    return extract_json_array(content)

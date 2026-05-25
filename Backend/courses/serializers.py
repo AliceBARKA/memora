@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import CoursePDF, Deck, Flashcard
+from .models import CoursePDF, Deck, Flashcard, Quiz, QuizQuestion, QuizAttempt
 
 class FlashcardSerializer(serializers.ModelSerializer):
     front = serializers.CharField(source="question")
@@ -25,4 +25,23 @@ class DeckSerializer(serializers.ModelSerializer):
 class CoursePDFSerializer(serializers.ModelSerializer):
     class Meta:
         model = CoursePDF
+        fields = "__all__"
+
+class QuizQuestionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = QuizQuestion
+        fields = "__all__"
+
+
+class QuizSerializer(serializers.ModelSerializer):
+    questions = QuizQuestionSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Quiz
+        fields = "__all__"
+
+
+class QuizAttemptSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = QuizAttempt
         fields = "__all__"
