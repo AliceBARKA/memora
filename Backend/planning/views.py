@@ -14,7 +14,7 @@ def get_revision_plans(request):
 
 @api_view(['POST'])
 def create_revision_plan(request):
-    user = User.objects.first()
+    user=request.user
 
     plan = RevisionPlan.objects.create(
         title = request.data.get('title'),

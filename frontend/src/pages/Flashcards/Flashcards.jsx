@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import flashcard from "/src/assets/flashcard.png";
-import { getDecks } from "../../services/api";  
+import { getDecks, uploadCoursePDF, generateFlashcardsFromCourse } from "../../services/api";
 import {
   ChevronLeft,
   ChevronRight,
@@ -11,69 +11,45 @@ import {
   Search,
   Shuffle,
   UploadCloud,
+  Trash2,
 } from "lucide-react";
 
-const initialDecks = [
-  {
-    id: 1,
-    title: "Formules de dérivation",
-    subject: "Mathématiques",
-    color: "#8B6CF6",
-    mastered: 3,
-    due: 3,
-    cards: [
-      { front: "Dérivée de sin(x) ?", back: "cos(x)" },
-      { front: "Dérivée de cos(x) ?", back: "-sin(x)" },
-      { front: "Dérivée de x² ?", back: "2x" },
-      { front: "Dérivée de e^x ?", back: "e^x" },
-      { front: "Dérivée de ln(x) ?", back: "1/x" },
-      { front: "Dérivée de 1/x ?", back: "-1/x²" },
-    ],
-  },
-  {
-    id: 2,
-    title: "Réseaux TCP/IP",
-    subject: "Réseaux",
-    color: "#60A5FA",
-    mastered: 1,
-    due: 4,
-    cards: [
-      { front: "À quoi sert TCP ?", back: "Assurer une transmission fiable des données." },
-      { front: "À quoi sert une adresse IP ?", back: "Identifier une machine sur un réseau." },
-    ],
-  },
-];
+const initialDecks = []
 
 function Flashcards() {
   const fileInputRef = useRef(null);
   const [mode, setMode] = useState("study");
   const [decks, setDecks] = useState(initialDecks);
-  const [deckId, setDeckId] = useState(initialDecks[0].id);
+  const [deckId, setDeckId] = useState(null);
   const [search, setSearch] = useState("");
   const [idx, setIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [progress, setProgress] = useState({ hard: 0, good: 0, easy: 0 });
+  const [shuffledCards, setShuffledCards] = useState([]);
 
-useEffect(() => {
+  
+
+  useEffect(() => {
     async function loadDecks() {
-        try {
-            const data = await getDecks();
-            if(Array.isArray(data) && data.length > 0) {
-                setDecks(data);
-                setDeckId(data[0].id);
-            } else {
-                setDecks(initialDecks);
-                setDeckId(initialDecks[0].id);
-            }
-        } catch (error) {
-            console.error("Erreur lors du chargement des flashcards :", error);
-            setDecks(initialDecks);
-            setDeckId(initialDecks[0].id);
-        }
+      try {
+        const data = await getDecks();
+
+        if (Array.isArray(data) && data.length > 0) {
+  setDecks(data);
+  setDeckId(data[0].id);
+} else {
+  setDecks([]);
+  setDeckId(null);
+}
+      } catch (error) {
+        console.error("Erreur lors du chargement des flashcards :", error);
+        setDecks([]);
+  setDeckId(null);
+      }
     }
 
     loadDecks();
-}, []);
+  }, []);
 
   const filteredDecks = useMemo(
     () =>
@@ -83,22 +59,65 @@ useEffect(() => {
     [decks, search]
   );
 
-  const deck = decks.find((d) => d.id === deckId) || decks[0];
-  const card = deck?.cards[idx];
-  const total = deck?.cards.length || 0;
+  const deck = decks.find((d) => d.id === deckId);
+  const activeCards =
+  shuffledCards.length > 0 ? shuffledCards : deck?.cards || [];
+
+  const card = activeCards[idx];
+  const total = activeCards.length || 0;
   const finished = idx >= total;
+
 
   useEffect(() => {
     setIdx(0);
     setFlipped(false);
     setProgress({ hard: 0, good: 0, easy: 0 });
+    setShuffledCards([]);
   }, [deckId]);
 
+   if (!deck) {
+  return (
+    <div className="p-8 max-w-[1500px] mx-auto text-[#1E293B]">
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/pdf"
+        hidden
+        onChange={(e) => handlePdf(e.target.files)}
+      />
+
+      <header className="flex items-end justify-between gap-5 mb-8">
+        <div>
+          <p className="text-xs font-extrabold uppercase tracking-wider text-[#8B6CF6]">
+            Mémorisation espacée
+          </p>
+          <h1 className="text-5xl font-extrabold tracking-tight mt-1">
+            Flashcards
+          </h1>
+          <p className="text-slate-500 mt-2">
+            Aucun deck pour le moment. Génère tes premières flashcards depuis un PDF.
+          </p>
+        </div>
+      </header>
+
+      <PdfGenerator onClick={() => window.location.href = "/courses"} />
+    </div>
+  );
+}
   const restart = () => {
     setIdx(0);
     setFlipped(false);
     setProgress({ hard: 0, good: 0, easy: 0 });
   };
+
+  const shuffleCards = () => {
+  const shuffled = [...deck.cards].sort(() => Math.random() - 0.5);
+
+  setShuffledCards(shuffled);
+  setIdx(0);
+  setFlipped(false);
+};
 
   const handleRate = (kind) => {
     setProgress((prev) => ({ ...prev, [kind]: prev[kind] + 1 }));
@@ -106,42 +125,31 @@ useEffect(() => {
     setTimeout(() => setIdx((i) => i + 1), 200);
   };
 
-  const handlePdf = (files) => {
+  const handlePdf = async (files) => {
     const pdf = Array.from(files || []).find((file) =>
       file.name.toLowerCase().endsWith(".pdf")
     );
 
     if (!pdf) return alert("Choisis un fichier PDF.");
 
-    const newDeck = {
-      id: Date.now(),
-      title: pdf.name.replace(/\.pdf$/i, ""),
-      subject: "Depuis PDF",
-      color: "#8B6CF6",
-      mastered: 0,
-      due: 3,
-      cards: [
-        {
-          front: "Carte générée depuis le PDF",
-          back: "Le backend Django + IA générera les vraies flashcards.",
-        },
-        {
-          front: "Notion importante du cours",
-          back: "Réponse générée automatiquement par l’IA.",
-        },
-        {
-          front: "Question possible d’examen",
-          back: "Réponse issue du résumé du PDF.",
-        },
-      ],
-    };
+    try {
+      const savedCourse = await uploadCoursePDF(pdf);
 
-    setDecks((prev) => [newDeck, ...prev]);
-    setDeckId(newDeck.id);
-    setMode("study");
+      await generateFlashcardsFromCourse(savedCourse.id);
 
-    if (fileInputRef.current) fileInputRef.current.value = "";
+      const data = await getDecks();
+
+      setDecks(data);
+      setDeckId(data[0].id);
+      setMode("study");
+
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch (error) {
+      console.error(error);
+      alert("Erreur pendant la génération des flashcards.");
+    }
   };
+
 
   return (
     <div className="p-8 max-w-[1500px] mx-auto text-[#1E293B]">
@@ -167,37 +175,35 @@ useEffect(() => {
         </div>
 
         <button
-  onClick={() => setMode("pdf")}
-  className="h-12 px-5 rounded-2xl bg-[#8B6CF6] text-white font-bold flex items-center gap-2 shadow-lg hover:bg-[#7C3AED]"
->
-  <Plus size={20} />
-  Nouvelles flashcards
-</button>
+          onClick={() => setMode("pdf")}
+          className="h-12 px-5 rounded-2xl bg-[#8B6CF6] text-white font-bold flex items-center gap-2 shadow-lg hover:bg-[#7C3AED]"
+        >
+          <Plus size={20} />
+          Nouvelles flashcards
+        </button>
       </header>
 
       <div className="inline-flex bg-white border border-slate-100 rounded-3xl p-2 shadow-sm mb-7">
         <button
           onClick={() => setMode("study")}
-          className={`px-6 py-3 rounded-2xl font-bold ${
-            mode === "study" ? "bg-[#8B6CF6] text-white" : "text-[#1E293B]"
-          }`}
+          className={`px-6 py-3 rounded-2xl font-bold ${mode === "study" ? "bg-[#8B6CF6] text-white" : "text-[#1E293B]"
+            }`}
         >
           🃏 Mes flashcards
         </button>
 
         <button
           onClick={() => setMode("pdf")}
-          className={`px-6 py-3 rounded-2xl font-bold ${
-            mode === "pdf" ? "bg-[#8B6CF6] text-white" : "text-[#1E293B]"
-          }`}
+          className={`px-6 py-3 rounded-2xl font-bold ${mode === "pdf" ? "bg-[#8B6CF6] text-white" : "text-[#1E293B]"
+            }`}
         >
           📄 Générer depuis PDF
         </button>
       </div>
 
       {mode === "pdf" ? (
-        <PdfGenerator onClick={() => fileInputRef.current?.click()} />
-      ) : (
+  <PdfGenerator onClick={() => window.location.href = "/courses"} />
+) : (
         <div className="grid lg:grid-cols-[360px_1fr] gap-7">
           <aside>
             <div className="relative mb-4">
@@ -212,13 +218,12 @@ useEffect(() => {
 
             <div className="bg-white rounded-3xl border border-slate-100 p-3">
               {filteredDecks.map((d) => (
-                <button
-                  key={d.id}
-                  onClick={() => setDeckId(d.id)}
-                  className={`w-full text-left p-4 rounded-2xl flex gap-4 transition ${
-                    d.id === deckId ? "bg-[#8B6CF6]/10" : "hover:bg-slate-50"
-                  }`}
-                >
+                <div
+  key={d.id}
+  onClick={() => setDeckId(d.id)}
+  className={`relative w-full text-left p-4 rounded-2xl flex gap-4 transition cursor-pointer ${d.id === deckId ? "bg-[#8B6CF6]/10" : "hover:bg-slate-50"
+    }`}
+>
                   <div
                     className="w-12 h-12 rounded-2xl text-white flex items-center justify-center"
                     style={{ background: d.color }}
@@ -226,11 +231,44 @@ useEffect(() => {
                     <Layers />
                   </div>
 
+<button
+  onClick={async (e) => {
+    e.stopPropagation();
+
+    try {
+      const token = localStorage.getItem("token");
+
+await fetch(
+  `http://127.0.0.1:8000/api/courses/flashcards/delete/${d.id}/`,
+  {
+    method: "DELETE",
+    headers: {
+      Authorization: `Token ${token}`,
+    },
+  }
+);
+
+      const updatedDecks = decks.filter((deck) => deck.id !== d.id);
+
+      setDecks(updatedDecks);
+
+      if (updatedDecks.length > 0) {
+        setDeckId(updatedDecks[0].id);
+      }
+
+    } catch (error) {
+      console.error(error);
+    }
+  }}
+  className="absolute top-4 right-4 text-red-400 hover:text-red-600 transition"
+>
+  <Trash2 size={18} />
+</button>
+
                   <div>
                     <h3
-                      className={`font-extrabold ${
-                        d.id === deckId ? "text-[#8B6CF6]" : ""
-                      }`}
+                      className={`font-extrabold ${d.id === deckId ? "text-[#8B6CF6]" : ""
+                        }`}
                     >
                       {d.title}
                     </h3>
@@ -247,10 +285,11 @@ useEffect(() => {
                       </span>
                     </div>
                   </div>
-                </button>
+                </div>
               ))}
             </div>
           </aside>
+
 
           <section>
             <div className="bg-white rounded-3xl border border-slate-100 p-5 mb-5">
@@ -260,10 +299,14 @@ useEffect(() => {
                   <button onClick={restart} className="hover:text-[#8B6CF6]">
                     Recommencer
                   </button>
-                  <button className="hover:text-[#8B6CF6] flex items-center gap-1">
+                  <button
+  onClick={shuffleCards}
+  className="hover:text-[#8B6CF6] flex items-center gap-1"
+>
                     <Shuffle size={16} /> Mélanger
                   </button>
                   <span>{Math.min(idx + 1, total)} / {total}</span>
+                  
                 </div>
               </div>
 
@@ -281,62 +324,63 @@ useEffect(() => {
             {!finished ? (
               <>
                 <div
-  onClick={() => setFlipped(!flipped)}
-  className="h-[420px] cursor-pointer [perspective:1200px]"
->
-  <div
-    className={`relative h-full w-full transition-transform duration-700 ease-out [transform-style:preserve-3d] ${
-      flipped ? "[transform:rotateY(180deg)]" : ""
-    }`}
-  >
-    {/* QUESTION */}
-    <div
-      className="absolute inset-0 rounded-[34px] border border-slate-100 shadow-xl flex flex-col items-center justify-center text-center p-10 overflow-hidden [backface-visibility:hidden]"
-      style={{
-        background: `linear-gradient(135deg, ${deck.color}18, #ffffff 55%, ${deck.color}10)`,
-      }}
-    >
-      <div
-        className="absolute -top-24 -left-24 w-72 h-72 rounded-full blur-3xl opacity-30"
-        style={{ background: deck.color }}
-      />
+                  onClick={() => setFlipped(!flipped)}
+                  className="h-[420px] cursor-pointer [perspective:1200px]"
+                >
+                  <div
+                    className={`relative h-full w-full transition-transform duration-700 ease-out [transform-style:preserve-3d] ${flipped ? "[transform:rotateY(180deg)]" : ""
+                      }`}
+                  >
+                    {/* QUESTION */}
+                    <div
+                      className="absolute inset-0 rounded-[34px] border border-slate-100 shadow-xl flex flex-col items-center justify-center text-center p-10 overflow-hidden [backface-visibility:hidden]"
+                      style={{
+                        background: `linear-gradient(135deg, ${deck.color}18, #ffffff 55%, ${deck.color}10)`,
+                      }}
+                    >
+                      <div
+                        className="absolute -top-24 -left-24 w-72 h-72 rounded-full blur-3xl opacity-30"
+                        style={{ background: deck.color }}
+                      />
 
-      <p className="relative uppercase text-sm font-extrabold text-slate-400">
-        Question
-      </p>
+                      <p className="relative uppercase text-sm font-extrabold text-slate-400">
+                        Question
+                      </p>
 
-      <h2 className="relative mt-8 text-5xl font-extrabold text-[#1E293B]">
-        {card.front}
-      </h2>
+                      <h2 className="relative mt-6 text-2xl md:text-3xl font-extrabold text-[#1E293B] leading-snug max-w-3xl">
+                        {card.front}
+                      </h2>
 
-      <p className="relative mt-8 text-slate-400">
-        Clique pour révéler la réponse
-      </p>
-    </div>
+                      <p className="relative mt-8 text-slate-400">
+                        Clique pour révéler la réponse
+                      </p>
+                    </div>
 
-    {/* RÉPONSE */}
-    <div
-      className="absolute inset-0 rounded-[34px] shadow-xl flex flex-col items-center justify-center text-center p-10 overflow-hidden text-white [backface-visibility:hidden] [transform:rotateY(180deg)]"
-      style={{
-        background: `linear-gradient(135deg, ${deck.color}, #A78BFA)`,
-      }}
-    >
-      <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-white/20 blur-3xl" />
+                    {/* RÉPONSE */}
+                    <div
+                      className="absolute inset-0 rounded-[34px] shadow-xl flex flex-col items-center justify-center text-center p-10 overflow-hidden text-white [backface-visibility:hidden] [transform:rotateY(180deg)]"
+                      style={{
+                        background: `linear-gradient(135deg, ${deck.color}, #A78BFA)`,
+                      }}
+                    >
+                      <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-white/20 blur-3xl" />
 
-      <p className="relative uppercase text-sm font-extrabold text-white/80">
-        Réponse
-      </p>
+                      <p className="relative uppercase text-sm font-extrabold text-white/80">
+                        Réponse
+                      </p>
 
-      <h2 className="relative mt-8 text-5xl font-extrabold">
-        {card.back}
-      </h2>
+                      <div className="relative mt-6 max-h-[250px] overflow-y-auto px-4">
+                        <h2 className="text-xl md:text-2xl font-bold leading-relaxed">
+                          {card.back}
+                        </h2>
+                      </div>
 
-      <p className="relative mt-8 text-white/80">
-        Clique pour revoir la question
-      </p>
-    </div>
-  </div>
-</div>
+                      <p className="relative mt-8 text-white/80">
+                        Clique pour revoir la question
+                      </p>
+                    </div>
+                  </div>
+                </div>
 
                 <div className="grid grid-cols-3 gap-4 mt-6">
                   <RateButton
@@ -410,10 +454,10 @@ function PdfGenerator({ onClick }) {
           Upload ton cours et Memi crée des cartes automatiquement.
         </p>
         <img
-  src={flashcard}
-  alt="Flashcard mascot"
-  className="absolute right-10 top-8 w-28 h-28 object-contain drop-shadow-xl hover:scale-110 transition duration-300"
-/>
+          src={flashcard}
+          alt="Flashcard mascot"
+          className="absolute right-10 top-8 w-28 h-28 object-contain drop-shadow-xl hover:scale-110 transition duration-300"
+        />
       </section>
 
       <section

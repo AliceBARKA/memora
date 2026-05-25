@@ -8,6 +8,7 @@ class CoursePDF(models.Model):
     file = models.FileField(upload_to='course_pdfs/')
     uploaded_at = models.DateTimeField(auto_now_add=True)
     user = models.ForeignKey(User, on_delete = models.CASCADE, related_name='course_pdfs')
+    summary =  models.TextField(blank=True , default="")
 
 
     def __str__(self):
@@ -38,3 +39,14 @@ class Flashcard(models.Model):
     def __str__(self):
         return self.question[:50]  # Return the first 50 characters of the question for display purposes   
     
+
+class Quiz(models.Model):
+    title = models.CharField(max_length=255)
+    subject = models.CharField(max_length=100, default="Quiz")
+    questions = models.JSONField(default=list)
+    created_at = models.DateTimeField(auto_now_add=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="quizzes")
+    course = models.ForeignKey(CoursePDF, on_delete=models.CASCADE, related_name="quizzes", null=True, blank=True)
+
+    def __str__(self):
+        return self.title

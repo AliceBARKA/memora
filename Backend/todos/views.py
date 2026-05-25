@@ -3,22 +3,24 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from .models import ToDo
-from .serializers import TodoSerializer
+from .serializers import ToDoSerializer
 
 
 @api_view(["GET", "POST"])
 def todo_list_create(request):
     if request.method == "GET":
-        todos = ToDo.objects.all().order_by("-id")
-        serializer = TodoSerializer(todos, many=True)
+        todos = ToDo.objects.filter(
+    user=request.user
+)
+        serializer = ToDoSerializer(todos, many=True)
         return Response(serializer.data)
 
     if request.method == "POST":
-        user = User.objects.first()
-        if user is None:
-            user = User.objects.create_user(username="demo", password="demo1234")
+        user = request.user
 
-        serializer = TodoSerializer(data={**request.data, "user": user.id})
+        serializer = ToDoSerializer(
+            data={**request.data, "user": user.id}
+    )
 
         if serializer.is_valid():
             serializer.save()
@@ -30,12 +32,15 @@ def todo_list_create(request):
 @api_view(["PATCH", "DELETE"])
 def todo_detail(request, todo_id):
     try:
-        todo = ToDo.objects.get(id=todo_id)
+        todo = ToDo.objects.get(
+    id=todo_id,
+    user=request.user
+)
     except ToDo.DoesNotExist:
         return Response({"error": "Todo introuvable"}, status=404)
 
     if request.method == "PATCH":
-        serializer = TodoSerializer(todo, data=request.data, partial=True)
+        serializer = ToDoSerializer(todo, data=request.data, partial=True)
 
         if serializer.is_valid():
             serializer.save()

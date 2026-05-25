@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import image from "/src/assets/image.png";
+import axios from "axios";
 import {
     Play,
     Sparkles,
@@ -9,6 +10,7 @@ import {
     RotateCcw,
     Trophy,
     Lightbulb,
+    Trash2,
 } from "lucide-react";
 
 const quizzesData = [
@@ -45,6 +47,12 @@ function Quiz() {
     const fileInputRef = useRef(null);
 
     const [quizzes, setQuizzes] = useState(quizzesData);
+    const [courses, setCourses] = useState([]);
+    const [showCourses, setShowCourses] = useState(false);
+    const [loadingQuizCourseId, setLoadingQuizCourseId] = useState(null);
+    const [showPersonalForm, setShowPersonalForm] = useState(false);
+    const [personalTopic, setPersonalTopic] = useState("");
+    const [loadingPersonalQuiz, setLoadingPersonalQuiz] = useState(false);
     const [selectedQuiz, setSelectedQuiz] = useState(null);
     const [step, setStep] = useState(0);
     const [selectedAnswer, setSelectedAnswer] = useState(null);
@@ -52,60 +60,127 @@ function Quiz() {
     const [showHint, setShowHint] = useState(false);
     const [finished, setFinished] = useState(false);
 
-    const createQuizFromPdf = (files) => {
-        const pdf = Array.from(files || []).find((file) =>
-            file.name.toLowerCase().endsWith(".pdf")
-        );
+    useEffect(() => {
+        fetchCourses();
+        fetchQuizzes();
+    }, []);
 
-        if (!pdf) return alert("Choisis un fichier PDF.");
+    const fetchCourses = async () => {
 
-        const newQuiz = {
-            id: Date.now(),
-            title: pdf.name.replace(/\.pdf$/i, ""),
-            subject: "Depuis PDF",
-            color: "#8B6CF6",
-            time: "5 min",
-            difficulty: "Auto",
-            questions: [
-                {
-                    question: "Question générée depuis ton PDF ?",
-                    options: ["Réponse A", "Réponse B", "Réponse C", "Réponse D"],
-                    answer: 0,
-                    hint: "Le backend remplacera cette question par une vraie question IA.",
-                },
-            ],
+        const token = localStorage.getItem("token");
+
+        const authConfig = {
+            headers: {
+                Authorization: `Token ${token}`,
+            },
         };
+        try {
+            const res = await axios.get("http://127.0.0.1:8000/api/courses/",authConfig);
+            setCourses(res.data);
+        } catch (err) {
+            console.error(err);
+        }
+    }
 
-        setQuizzes((prev) => [newQuiz, ...prev]);
-        setSelectedQuiz(newQuiz);
+    const fetchQuizzes = async () => {
+        try {
+            const res = await axios.get("http://127.0.0.1:8000/api/courses/quizzes/",authConfig);
 
-        if (fileInputRef.current) fileInputRef.current.value = "";
+            const formatted = res.data.map((quiz) => ({
+                id: quiz.id,
+                title: quiz.title,
+                subject: quiz.subject,
+                color: quiz.subject === "Personnalisé" ? "#FBBF24" : "#8B6CF6",
+                time: "5 min",
+                difficulty: "IA",
+                questions: quiz.questions,
+            }));
+
+            setQuizzes(formatted);
+        } catch (err) {
+            console.error(err);
+        }
     };
 
-    const createPersonalQuiz = () => {
-        const subject = prompt("Sur quel sujet veux-tu créer un quiz ?");
+    const generateQuizFromCourse = async (course) => {
+        const existingQuiz = quizzes.find(
+            (q) => q.title === `Quiz - ${course.title}`
+        );
 
-        if (!subject) return;
+        if (existingQuiz) {
+            alert("Quiz déjà généré.");
+            return;
+        }
 
-        const newQuiz = {
-            id: Date.now(),
-            title: subject,
-            subject: "Personnalisé",
-            color: "#FBBF24",
-            time: "6 min",
-            difficulty: "Sur mesure",
-            questions: [
+        try {
+            setLoadingQuizCourseId(course.id);
+
+            const res = await axios.post(
+                `http://127.0.0.1:8000/api/courses/${course.id}/generate-quiz/`
+                ,authConfig
+            );
+
+            const newQuiz = {
+                id: res.data.id,
+                title: res.data.title,
+                subject: res.data.subject,
+                color: "#8B6CF6",
+                time: "5 min",
+                difficulty: "IA",
+                questions: res.data.questions,
+            };
+
+            setQuizzes((prev) => [newQuiz, ...prev]);
+            setShowCourses(false);
+        } catch (err) {
+            console.error(err);
+            alert("Erreur pendant la génération du quiz.");
+        } finally {
+            setLoadingQuizCourseId(null);
+        }
+    };
+
+    const createPersonalQuiz = async () => {
+        if (!personalTopic.trim()) return;
+
+        try {
+            setLoadingPersonalQuiz(true);
+
+            const res = await axios.post(
+                "http://127.0.0.1:8000/api/courses/generate-personal-quiz/",
                 {
-                    question: `Question personnalisée sur : ${subject} ?`,
-                    options: ["Option 1", "Option 2", "Option 3", "Option 4"],
-                    answer: 0,
-                    hint: "Le backend générera les vraies questions selon ce sujet.",
-                },
-            ],
-        };
+                    topic: personalTopic,
+                },authConfig
+            );
 
-        setQuizzes((prev) => [newQuiz, ...prev]);
-        setSelectedQuiz(newQuiz);
+            const newQuiz = {
+                id: res.data.id,
+                title: res.data.title,
+                subject: res.data.subject,
+                color: "#FBBF24",
+                time: "6 min",
+                difficulty: "IA",
+                questions: res.data.questions,
+            };
+
+            setQuizzes((prev) => [newQuiz, ...prev]);
+            setPersonalTopic("");
+            setShowPersonalForm(false);
+        } catch (err) {
+            console.error(err);
+            alert("Erreur génération quiz.");
+        } finally {
+            setLoadingPersonalQuiz(false);
+        }
+    };
+
+    const deleteQuiz = async (quizId) => {
+        try {
+            await axios.delete(`http://127.0.0.1:8000/api/courses/quizzes/delete/${quizId}/`,authConfig);
+            setQuizzes((prev) => prev.filter((q) => q.id !== quizId));
+        } catch (err) {
+            console.error(err);
+        }
     };
 
     const startQuiz = (quiz) => {
@@ -193,7 +268,7 @@ function Quiz() {
                 </div>
 
                 <button
-                    onClick={createPersonalQuiz}
+                    onClick={() => setShowPersonalForm(!showPersonalForm)}
                     className="h-12 px-5 rounded-2xl bg-[#8B6CF6] text-white font-bold flex items-center gap-2 shadow-lg hover:bg-[#7C3AED]"
                 >
                     <Plus size={20} />
@@ -201,7 +276,7 @@ function Quiz() {
                 </button>
             </header>
 
-            <section className="rounded-[34px] bg-gradient-to-br from-[#8B6CF6] to-[#C084FC] p-8 text-white flex items-center justify-between mb-8 overflow-hidden relative">
+            <section className="rounded-[34px] bg-gradient-to-br from-[#8B6CF6] to-[#C084FC] p-8 text-white flex items-center justify-between mb-8 overflow-visible relative">
                 <div>
                     <p className="font-bold flex items-center gap-2">
                         <Sparkles size={18} />
@@ -217,22 +292,84 @@ function Quiz() {
                     </p>
                 </div>
 
-                <div className="flex gap-3 relative z-10">
-                    <button
-                        onClick={() => fileInputRef.current?.click()}
-                        className="h-12 px-5 rounded-2xl bg-white text-[#1E293B] font-bold flex items-center gap-2 hover:-translate-y-0.5 transition"
-                    >
-                        <FileText size={19} />
-                        Depuis PDF
-                    </button>
+                <div className="flex gap-3 relative z-10 items-start max-w-full">
+                    <div className="relative">
+                        <button
+                            onClick={() => setShowCourses(!showCourses)}
+                            className="h-12 px-5 rounded-2xl bg-white text-[#1E293B] font-bold flex items-center gap-2 hover:-translate-y-0.5 transition"
+                        >
+                            <FileText size={19} />
+                            Depuis PDF
+                        </button>
 
-                    <button
-                        onClick={createPersonalQuiz}
-                        className="h-12 px-5 rounded-2xl bg-[#FBBF24] text-[#1E293B] font-bold flex items-center gap-2 hover:-translate-y-0.5 transition"
-                    >
-                        <Sparkles size={19} />
-                        Quiz personnalisé
-                    </button>
+                        {showCourses && (
+                            <div className="absolute top-16 left-0 w-64 bg-white backdrop-blur-xl rounded-2xl border border-white/40 shadow-2xl p-3 z-50">
+                                <p className="font-bold mb-3 text-slate-700">
+                                    Choisir un cours
+                                </p>
+
+                                <div className="space-y-1 max-h-44 overflow-y-auto pr-1">
+                                    {courses.map((course) => (
+                                        <button disabled={loadingQuizCourseId !== null}
+                                            key={course.id}
+                                            onClick={() => {
+                                                generateQuizFromCourse(course);
+                                            }}
+                                            className="w-full text-left px-4 py-3 rounded-xl hover:bg-[#F3F0FF] transition text-slate-700 font-medium"
+                                        >
+                                            {loadingQuizCourseId === course.id ? (
+                                                <span className="flex items-center gap-2">
+                                                    <span className="w-4 h-4 border-2 border-[#8B6CF6] border-t-transparent rounded-full animate-spin"></span>
+                                                    Génération...
+                                                </span>
+                                            ) : (
+                                                course.title
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    <div className="relative">
+                        <button
+                            onClick={() => setShowPersonalForm(!showPersonalForm)}
+                            className="h-12 px-5 rounded-2xl bg-[#FBBF24] text-[#1E293B] font-bold flex items-center gap-2 hover:-translate-y-0.5 transition"
+                        >
+                            <Sparkles size={19} />
+                            Quiz personnalisé
+                        </button>
+
+                        {showPersonalForm && (
+                            <div className="absolute top-16 right-0 w-80 bg-white rounded-2xl border border-slate-100 shadow-2xl p-4 z-50">
+                                <p className="font-bold mb-3 text-slate-700">
+                                    Sujet du quiz
+                                </p>
+
+                                <input
+                                    value={personalTopic}
+                                    onChange={(e) => setPersonalTopic(e.target.value)}
+                                    placeholder="Entrez le sujet du quiz..."
+                                    className="w-full h-11 rounded-xl border border-slate-200 px-3 text-slate-700 outline-none focus:ring-2 focus:ring-[#FBBF24]/40"
+                                />
+
+                                <button
+                                    onClick={createPersonalQuiz}
+                                    disabled={loadingPersonalQuiz}
+                                    className="mt-3 w-full h-11 rounded-xl bg-[#FBBF24] text-[#1E293B] font-bold flex items-center justify-center gap-2 disabled:opacity-60"
+                                >
+                                    {loadingPersonalQuiz ? (
+                                        <>
+                                            <span className="w-4 h-4 border-2 border-[#1E293B] border-t-transparent rounded-full animate-spin"></span>
+                                            Génération...
+                                        </>
+                                    ) : (
+                                        "Générer le quiz"
+                                    )}
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <div className="absolute -right-20 -top-20 w-72 h-72 bg-white/10 rounded-full blur-3xl" />
@@ -242,16 +379,16 @@ function Quiz() {
 
             <section className="grid md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {quizzes.map((quiz) => (
-                    <QuizCard key={quiz.id} quiz={quiz} onStart={() => startQuiz(quiz)} />
+                    <QuizCard key={quiz.id} quiz={quiz} onStart={() => startQuiz(quiz)} onDelete={deleteQuiz} />
                 ))}
             </section>
         </div>
     );
 }
 
-function QuizCard({ quiz, onStart }) {
+function QuizCard({ quiz, onStart, onDelete }) {
     return (
-        <article className="bg-white rounded-[30px] border border-slate-100 p-6 hover:-translate-y-1 hover:shadow-xl transition">
+        <article className="relative bg-white rounded-[30px] border border-slate-100 p-6 hover:-translate-y-1 hover:shadow-xl transition">
             <p
                 className="text-xs font-extrabold uppercase tracking-widest"
                 style={{ color: quiz.color }}
@@ -265,6 +402,7 @@ function QuizCard({ quiz, onStart }) {
                 {quiz.questions.length} questions · {quiz.time} · {quiz.difficulty}
             </p>
 
+
             <button
                 onClick={onStart}
                 className="mt-7 w-full h-12 rounded-2xl text-white font-bold flex items-center justify-center gap-2"
@@ -272,6 +410,14 @@ function QuizCard({ quiz, onStart }) {
             >
                 <Play size={18} />
                 Commencer
+            </button>
+
+            <button
+                onClick={() => onDelete(quiz.id)}
+                className="mt-3 w-full h-12 rounded-2xl border border-slate-200 text-slate-400 font-bold flex items-center justify-center gap-2 hover:bg-slate-100"
+            >
+                <Trash2 size={18} />
+                Supprimer
             </button>
         </article>
     );
@@ -300,10 +446,10 @@ function QuizArena({
                         <div
                             key={index}
                             className={`w-12 h-12 rounded-2xl flex items-center justify-center font-extrabold ${index === step
-                                    ? "bg-[#8B6CF6] text-white"
-                                    : index < step
-                                        ? "bg-emerald-100 text-emerald-600"
-                                        : "bg-white text-slate-400"
+                                ? "bg-[#8B6CF6] text-white"
+                                : index < step
+                                    ? "bg-emerald-100 text-emerald-600"
+                                    : "bg-white text-slate-400"
                                 }`}
                         >
                             {index + 1}
@@ -401,7 +547,7 @@ function QuizArena({
                             alt="Memi"
                             className="w-24 h-24 object-contain mb-3 mx-auto"
                         />
-                       
+
 
                         <button
                             onClick={() => setShowHint(!showHint)}

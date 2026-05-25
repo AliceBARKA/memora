@@ -46,7 +46,12 @@ INSTALLED_APPS = [
     "courses",
     "planning",
     "todos",
+
+    "rest_framework.authtoken",
+
+    "accounts",
 ]
+
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
@@ -57,7 +62,7 @@ MIDDLEWARE = [
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
-    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    #"django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 ROOT_URLCONF = "memora_api.urls"
 
@@ -131,3 +136,17 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
+
+CORS_ALLOW_ALL_ORIGINS = True
+X_FRAME_OPTIONS = "ALLOWALL"
+
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.TokenAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getCourses, uploadCoursePDF } from "../../services/api";
+import ReactMarkdown from "react-markdown";
+import { getCourses, uploadCoursePDF, deleteCourseApi,generateFlashcardsFromCourse, generateSummaryFromCourse,askQuestionFromCourse } from "../../services/api";
 import {
   Search,
   Plus,
@@ -7,7 +8,7 @@ import {
   Clock3,
   BookOpen,
   ArrowRight,
-  Grid3x3,
+  Grid3x3, 
   List,
   X,
   UploadCloud,
@@ -31,7 +32,11 @@ function Courses() {
   const [openCourse, setOpenCourse] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   const [newSubject, setNewSubject] = useState("");
-  
+  const [loadingSummary, setLoadingSummary] = useState(false);
+  const [loadingFlashcards, setLoadingFlashcards] = useState(false);
+  const [flashcardsReady, setFlashcardsReady] = useState(false);
+ 
+
   useEffect(() => {
   async function loadCourses() {
     try {
@@ -41,13 +46,11 @@ function Courses() {
         id: course.id,
         title: course.title,
         subjectId: "general",
-        description: "PDF importé dans la base Django.",
-        chapters: ["Résumé du document", "Notions importantes", "Questions possibles"],
-        progress: 0,
-        totalTime: "0h 00",
-        lastStudied: "À l’instant",
-        summary: "Résumé IA en attente.",
+        description: "",
+        chapters: [],
+        summary: course.summary || "Résumé IA en attente.",
         fileName: course.file?.split("/").pop() || "PDF",
+        fileUrl: course.file ,
       }));
 
       setCourses(formatted);
@@ -98,13 +101,11 @@ function Courses() {
         id: savedCourse.id,
         title: savedCourse.title,
         subjectId: "general",
-        description: "PDF importé dans la base Django.",
-        chapters: ["Résumé du document", "Notions importantes", "Questions possibles"],
-        progress: 0,
-        totalTime: "0h 00",
-        lastStudied: "À l’instant",
+        description: "",
+        chapters: [],
         summary: "Résumé IA en attente.",
         fileName: savedCourse.file?.split("/").pop() || file.name,
+        fileUrl: savedCourse.file ,
       });
     }
 
@@ -119,13 +120,53 @@ function Courses() {
   }
 };
 
-  const generateSummary = () => {
-  if (courses.length === 0) {
-    alert("Importe d'abord un PDF.");
-    return;
-  }
+  const generateSummary = async (courseId) => {
+  try {
+    setLoadingSummary(true);
 
-  alert("Résumé IA en cours... Le backend Django fera cette partie.");
+    const updatedCourse = await generateSummaryFromCourse(courseId);
+
+    if (!updatedCourse.summary || updatedCourse.summary.trim() === "") {
+      alert("Le résumé n'a pas été généré.");
+      return;
+    }
+
+    setCourses((prev) =>
+      prev.map((course) =>
+        course.id === updatedCourse.id
+          ? { ...course, summary: updatedCourse.summary }
+          : course
+      )
+    );
+
+    if (openCourse?.id === updatedCourse.id) {
+      setOpenCourse((prev) => ({
+        ...prev,
+        summary: updatedCourse.summary,
+      }));
+    }
+  } catch (error) {
+    console.error(error);
+    alert("Erreur pendant la génération du résumé.");
+  } finally {
+    setLoadingSummary(false);
+  }
+};
+
+const generateFlashcards = async (courseId) => {
+  try {
+    setLoadingFlashcards(true);
+    const result = await generateFlashcardsFromCourse(courseId);
+    if (result.already_exists) {
+  alert("Flashcards déjà générées pour ce cours.");
+}
+    setFlashcardsReady(true);
+  } catch (error) {
+    console.error("Erreur génération flashcards :", error);
+    alert("Erreur pendant la génération des flashcards.");
+  }finally {
+    setLoadingFlashcards(false);
+  }
 };
 
 const addSubject = () => {
@@ -157,10 +198,16 @@ const addSubject = () => {
     }
   };
 
-  const deleteCourse = (id) => {
+  const deleteCourse = async (id) => {
+  try {
+    await deleteCourseApi(id);
     setCourses((prev) => prev.filter((course) => course.id !== id));
     if (openCourse?.id === id) setOpenCourse(null);
-  };
+  } catch (error) {
+    console.error(error);
+    alert("Erreur pendant la suppression du cours.");
+  }
+};
 
   return (
     <div className="min-h-screen px-10 py-8 text-[#1E293B]">
@@ -264,17 +311,7 @@ const addSubject = () => {
           </div>
         </div>
 
-        <button
-  type="button"
-  onClick={(e) => {
-    e.stopPropagation();
-    generateSummary();
-  }}
-  className="hidden md:inline-flex items-center gap-2 px-5 py-3 rounded-2xl border border-slate-200 bg-white text-sm font-bold text-[#8B6CF6] hover:bg-[#8B6CF6]/10 transition"
->
-  <Sparkles size={17} />
-  Résumer avec l’IA
-</button>
+        
       </section>
 
       <div className="flex flex-col lg:flex-row lg:items-center gap-3 mb-5">
@@ -364,6 +401,11 @@ const addSubject = () => {
           onClose={() => setOpenCourse(null)}
           onRename={renameCourse}
           onDelete={deleteCourse}
+          onGenerateSummary={generateSummary}
+          loadingSummary={loadingSummary}
+          onGenerateFlashcards={generateFlashcards}
+          loadingFlashcards={loadingFlashcards}
+          flashcardsReady={flashcardsReady}
         />
       )}
     </div>
@@ -381,6 +423,7 @@ function CourseCard({ course, getSubject, onOpen, onRename, onDelete }) {
     }
     setEditing(false);
   };
+
 
   return (
     <article
@@ -440,37 +483,16 @@ function CourseCard({ course, getSubject, onOpen, onRename, onDelete }) {
           </button>
         </div>
 
-        <p className="mt-3 text-sm text-slate-500 leading-relaxed line-clamp-2">
-          {course.description}
-        </p>
+        
 
         <p className="mt-3 text-xs text-slate-400 flex items-center gap-1">
           <FileText size={14} />
           {course.fileName}
         </p>
 
-        <div className="mt-5">
-          <div className="flex items-center justify-between text-sm mb-2">
-            <span className="font-bold text-slate-500">
-              {course.chapters.length} chapitres
-            </span>
-            <span className="font-extrabold">{course.progress}%</span>
-          </div>
-
-          <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-            <div
-              className="h-full rounded-full"
-              style={{
-                width: `${course.progress}%`,
-                background: subject.color,
-              }}
-            />
-          </div>
-        </div>
+      
 
         <div className="mt-5 flex items-center justify-between">
-          <span className="text-sm text-slate-400">{course.lastStudied}</span>
-
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -505,7 +527,7 @@ function CourseRow({ course, getSubject, onOpen, onDelete }) {
       <div className="flex-1">
         <h3 className="font-extrabold">{course.title}</h3>
         <p className="text-sm text-slate-400">
-          {subject.name} · {course.chapters.length} chapitres ·{" "}
+          {subject.name}
           {course.totalTime}
         </p>
       </div>
@@ -525,15 +547,52 @@ function CourseRow({ course, getSubject, onOpen, onDelete }) {
   );
 }
 
-function CourseDrawer({ course, getSubject, onClose, onRename, onDelete }) {
+function CourseDrawer({ course, getSubject, onClose, onRename, onDelete, onGenerateSummary,loadingSummary,onGenerateFlashcards,loadingFlashcards, flashcardsReady }) {
   const subject = getSubject(course.subjectId);
   const [title, setTitle] = useState(course.title);
+  const [question, setQuestion] = useState("");
+  const [messages, setMessages] = useState([]);
+  const pdfUrl = course.fileUrl?.startsWith("http")
+  ? course.fileUrl
+  : `http://127.0.0.1:8000${course.fileUrl}`;
 
   const save = () => {
     if (title.trim() !== "") {
       onRename(course.id, title.trim());
     }
   };
+
+  const sendQuestion = async () => {
+  if (!question.trim()) return;
+
+  const userQuestion = question;
+  setQuestion("");
+
+  setMessages((prev) => [
+    ...prev,
+    { role: "user", text: userQuestion },
+    { role: "assistant", text: "Memi réfléchit..." },
+  ]);
+
+  try {
+    const result = await askQuestionFromCourse(course.id, userQuestion);
+
+    setMessages((prev) => [
+      ...prev.slice(0, -1),
+      { role: "assistant", text: result.answer },
+    ]);
+  } catch (error) {
+    console.error(error);
+
+    setMessages((prev) => [
+      ...prev.slice(0, -1),
+      {
+        role: "assistant",
+        text: "Erreur pendant la génération de la réponse.",
+      },
+    ]);
+  }
+};
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -542,7 +601,27 @@ function CourseDrawer({ course, getSubject, onClose, onRename, onDelete }) {
         className="absolute inset-0 bg-[#1E293B]/30 backdrop-blur-sm"
       />
 
-      <aside className="relative z-10 w-full md:w-[580px] bg-white shadow-2xl overflow-y-auto">
+      <div className="relative z-10 hidden lg:block w-[calc(100vw-580px)] p-8">
+  <div className="h-full rounded-3xl border border-slate-200 overflow-hidden bg-white shadow-2xl">
+    
+    {course.fileUrl ? (
+  
+    
+
+<iframe
+  src={pdfUrl}
+  title={course.title}
+  className="w-full h-full"
+/>
+    ) : (
+      <div className="h-full flex items-center justify-center text-slate-400">
+        Aucun PDF disponible
+      </div>
+    )}
+  </div>
+</div>
+
+      <aside className="relative z-10 w-full md:w-[65vw] bg-white shadow-2xl overflow-y-auto rounded-l-[36px] overflow-hidden">
         <div
           className="p-8 text-white relative overflow-hidden"
           style={{ background: subject.color }}
@@ -568,54 +647,159 @@ function CourseDrawer({ course, getSubject, onClose, onRename, onDelete }) {
 
             <Pencil size={20} />
           </div>
-
-          <p className="mt-4 text-white/90 leading-relaxed">
-            {course.description}
-          </p>
-
-          <div className="mt-5 flex gap-2">
-            <Meta label={`${course.chapters.length} chapitres`} />
-            <Meta label={course.totalTime} />
-            <Meta label={`${course.progress}% terminé`} />
-          </div>
+        
         </div>
 
         <div className="p-8">
-          <h3 className="text-sm font-extrabold uppercase tracking-wider mb-4">
-            Résumé IA
-          </h3>
+          <div className="grid gap-3 mb-6">
+  
 
-          <div className="rounded-3xl bg-[#8B6CF6]/5 border border-[#8B6CF6]/10 p-5 text-slate-600 leading-relaxed mb-7">
-            {course.summary}
+  <button
+    type="button"
+    disabled={loadingFlashcards}
+    onClick={() => onGenerateFlashcards(course.id)}
+    className={`w-full h-12 rounded-2xl text-white font-bold flex items-center justify-center gap-2 ${
+      loadingFlashcards
+        ? "bg-[#A78BFA] cursor-not-allowed"
+        : "bg-[#8B6CF6] hover:bg-[#7C3AED]"
+    }`}
+  >
+    {loadingFlashcards ? (
+      <>
+        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+        Génération des flashcards...
+      </>
+    ) : (
+      <>
+        <Sparkles size={17} />
+        Générer les flashcards
+      </>
+    )}
+  </button>
+  {flashcardsReady && (
+  <button
+    onClick={() => window.location.href = "/flashcards"}
+    className="w-full h-12 rounded-2xl bg-[#1E293B] text-white font-bold hover:bg-[#0f172a]"
+  >
+    Voir les flashcards générées →
+  </button>
+)}
+</div>
+          <div className="mb-5">
+
+  <button
+    type="button"
+    disabled={loadingSummary}
+    onClick={() => onGenerateSummary(course.id)}
+    className={`mb-4 w-full h-12 rounded-2xl text-white font-bold flex items-center justify-center gap-2 ${
+      loadingSummary
+        ? "bg-[#A78BFA] cursor-not-allowed"
+        : "bg-[#8B6CF6] hover:bg-[#7C3AED]"
+    }`}
+  >
+    {loadingSummary ? (
+      <>
+        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+        Génération du résumé...
+      </>
+    ) : (
+      <>
+        <Sparkles size={17} />
+        Résumer avec l’IA
+      </>
+    )}
+  </button>
+
+  <div className="rounded-[30px] bg-white border border-slate-200 p-5 shadow-sm">
+
+    <div className="space-y-4 max-h-[430px] overflow-y-auto mb-4 pr-2">
+
+      {course.summary &&
+        course.summary !== "Résumé IA en attente." && (
+          <div className="flex justify-start">
+            <div className="w-full rounded-3xl bg-[#F8F5FF] px-5 py-4 text-slate-700 leading-8 text-[15px]">
+              <ReactMarkdown
+  components={{
+    p: ({ children }) => (
+      <p className="mb-2 leading-7 text-slate-700">
+        {children}
+      </p>
+    ),
+
+    h1: ({ children }) => (
+      <h1 className="text-xl font-extrabold mb-3 text-[#1E293B]">
+        {children}
+      </h1>
+    ),
+
+    h2: ({ children }) => (
+      <h2 className="text-lg font-bold mb-2 mt-4 text-[#1E293B]">
+        {children}
+      </h2>
+    ),
+
+    hr: () => null,
+
+    strong: ({ children }) => (
+      <strong className="font-bold text-[#1E293B]">
+        {children}
+      </strong>
+    ),
+  }}
+>
+                {course.summary}
+
+              </ReactMarkdown>
+            </div>
           </div>
+      )}
 
-          <h3 className="text-sm font-extrabold uppercase tracking-wider mb-4">
-            Chapitres générés
-          </h3>
+      {messages.map((message, index) => (
+  <div
+    key={index}
+    className={`flex ${
+      message.role === "user" ? "justify-end" : "justify-start"
+    }`}
+  >
+    <div
+      className={`max-w-[60%] rounded-3xl px-4 py-3 text-[15px] leading-7 ${
+        message.role === "user"
+          ? "bg-[#8B6CF6] text-white rounded-br-md shadow-sm"
+          : "bg-[#8B6CF6]/10 text-slate-700 rounded-bl-md"
+      }`}
+    >
+      {message.text}
+    </div>
+  </div>
+))}
 
-          <div className="space-y-3">
-            {course.chapters.map((chapter, index) => (
-              <div
-                key={`${chapter}-${index}`}
-                className="flex items-center gap-4 p-4 rounded-2xl border border-slate-100 hover:bg-slate-50"
-              >
-                <div className="w-10 h-10 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center font-bold">
-                  {index + 1}
-                </div>
+    </div>
 
-                <p className="flex-1 font-bold">
-                  Chapitre {index + 1} — {chapter}
-                </p>
+    <div className="flex gap-2">
+      <input
+  type="text"
+  value={question}
+  onChange={(e) => setQuestion(e.target.value)}
+  onKeyDown={(e) => {
+    if (e.key === "Enter") sendQuestion();
+  }}
+  placeholder="Pose une question sur ce cours..."
+  className="flex-1 h-12 rounded-2xl border border-slate-200 px-4 outline-none focus:ring-2 focus:ring-[#8B6CF6]/30"
+/>
 
-                <BookOpen className="text-slate-300" size={20} />
-              </div>
-            ))}
-          </div>
+<button
+  type="button"
+  onClick={sendQuestion}
+  className="h-12 px-5 rounded-2xl bg-[#1E293B] text-white font-bold"
+>
+  Envoyer
+</button>
+    </div>
 
-          <button className="mt-7 w-full h-12 rounded-2xl bg-[#1E293B] text-white font-bold hover:bg-[#0f172a]">
-            Reprendre ce cours
-          </button>
+  </div>
+</div>
 
+        
           <button
             onClick={() => onDelete(course.id)}
             className="mt-3 w-full h-12 rounded-2xl bg-red-50 text-red-500 font-bold hover:bg-red-100"

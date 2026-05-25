@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Mail, Lock, Eye, EyeOff, Sparkles, ArrowRight, User } from "lucide-react";
 import memiImage from "/src/assets/mascot.png";
+import axios from "axios";
 
 function Login() {
   const navigate = useNavigate();
@@ -12,9 +13,36 @@ function Login() {
   const [password, setPassword] = useState("memora2026");
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    navigate("/dashboard");
+
+    try {
+      const endpoint = isSignup
+        ? "register"
+        : "login";
+
+      const res = await axios.post(
+        `http://127.0.0.1:8000/api/auth/${endpoint}/`,
+        {
+          username: email,
+          password: password,
+          name: name,
+        }
+      );
+
+      localStorage.setItem("token", res.data.token);
+      localStorage.setItem("name", res.data.name);
+
+      navigate("/dashboard");
+
+    } catch (err) {
+      console.error(err);
+
+      alert(
+        err.response?.data?.error ||
+        "Erreur authentification."
+      );
+    }
   };
 
   return (
@@ -78,6 +106,7 @@ function Login() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            
             {isSignup && (
               <div>
                 <label className="block text-sm font-bold text-[#1E293B] mb-2">

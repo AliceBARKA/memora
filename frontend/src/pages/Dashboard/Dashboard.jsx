@@ -1,4 +1,7 @@
+import { useEffect, useState } from "react";
+import axios from "axios";
 import { Link } from "react-router-dom";
+import dashboardImg from "../../assets/dashboard.png";
 import {
   BookOpen,
   CalendarDays,
@@ -16,80 +19,73 @@ import {
 
 import mascot from "/src/assets/mascot.png";
 
+
+
 const user = {
-  name: "Faiza",
-  streak: 12,
+  name: localStorage.getItem("name") || "Étudiant",
 };
 
 const sessions = [
   {
     id: 1,
-    title: "Philo — liberté",
-    subject: "Philosophie",
-    time: "11h00 — 12h00",
-    color: "#A78BFA",
-    short: "Ph",
-  },
-  {
-    id: 2,
-    title: "Physique exos",
-    subject: "Physique-Chimie",
-    time: "15h00 — 17h00",
-    color: "#60A5FA",
-    short: "Ph",
-  },
-];
-
-const courses = [
-  {
-    title: "Limites et continuité",
-    subject: "Mathématiques",
-    progress: 72,
+    title: "Révision IA",
+    subject: "Session Memora",
+    time: "Aujourd’hui",
     color: "#8B6CF6",
-    info: "Il y a 2 h · 4h 20",
-  },
-  {
-    title: "Ondes mécaniques",
-    subject: "Physique-Chimie",
-    progress: 45,
-    color: "#60A5FA",
-    info: "Hier · 2h 50",
-  },
-  {
-    title: "La Guerre froide",
-    subject: "Histoire-Géo",
-    progress: 90,
-    color: "#FBBF24",
-    info: "Avant-hier · 3h 10",
-  },
-  {
-    title: "Génétique mendélienne",
-    subject: "SVT",
-    progress: 30,
-    color: "#34D399",
-    info: "Il y a 4 j · 1h 40",
-  },
-];
-
-const todos = [
-  {
-    title: "Finir DM de maths — exercices 12 à 18",
-    subject: "Mathématiques · Aujourd'hui",
-    color: "#8B6CF6",
-  },
-  {
-    title: "Apprendre 30 irregular verbs",
-    subject: "Anglais · Demain",
-    color: "#F472B6",
-  },
-  {
-    title: "Lire chapitre 4 de philo",
-    subject: "Philosophie · Cette semaine",
-    color: "#A78BFA",
+    short: "Me",
   },
 ];
 
 function Dashboard() {
+
+  const [courses, setCourses] = useState([]);
+  const [todos, setTodos] = useState([]);
+  const [quizzes, setQuizzes] = useState([]);
+  const [decks, setDecks] = useState([]);
+
+  const todayLabel = new Date().toLocaleDateString("fr-FR", {
+    weekday: "long",
+  });
+
+  const todayLabelCapitalized =
+    todayLabel.charAt(0).toUpperCase() + todayLabel.slice(1);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+
+      const token = localStorage.getItem("token");
+
+      const authConfig = {
+        headers: {
+          Authorization: `Token ${token}`,
+        },
+      };
+      const [
+        coursesRes,
+        todosRes,
+        quizzesRes,
+        decksRes,
+      ] = await Promise.all([
+        axios.get("http://127.0.0.1:8000/api/courses/", authConfig),
+        axios.get("http://127.0.0.1:8000/api/todos/", authConfig),
+        axios.get("http://127.0.0.1:8000/api/courses/quizzes/", authConfig),
+        axios.get("http://127.0.0.1:8000/api/courses/decks/", authConfig),
+      ]);
+
+      setCourses(coursesRes.data);
+      setTodos(todosRes.data);
+      setQuizzes(quizzesRes.data);
+      setDecks(decksRes.data);
+
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   return (
     <div className="p-8 max-w-[1500px] mx-auto">
       <section className="relative overflow-hidden rounded-[34px] bg-gradient-to-br from-[#8B6CF6] via-[#A78BFA] to-[#60A5FA] p-9 text-white shadow-xl">
@@ -136,18 +132,50 @@ function Dashboard() {
       </section>
 
       <section className="grid grid-cols-4 gap-5 mt-6">
-        <StatCard icon={<Flame />} value="12 j" label="Série" trend="+2" color="yellow" />
-        <StatCard icon={<Clock3 />} value="6h 42" label="Cette semaine" trend="+18%" color="blue" />
-        <StatCard icon={<Target />} value="82%" label="Précision quiz" trend="+5%" color="green" />
-        <StatCard icon={<Trophy />} value="124" label="Cartes maîtrisées" trend="+12" color="purple" />
+        <StatCard
+          icon={<BookOpen />}
+          value={courses.length}
+          label="Cours"
+          trend="+"
+          color="purple"
+        />
+
+        <StatCard
+          icon={<CheckCircle2 />}
+          value={todos.filter((t) => t.status === "done").length}
+          label="Tâches terminées"
+          trend="+"
+          color="green"
+        />
+
+        <StatCard
+          icon={<Target />}
+          value={quizzes.length}
+          label="Quiz générés"
+          trend="+"
+          color="blue"
+        />
+
+        <StatCard
+          icon={<Trophy />}
+          value={decks.length}
+          label="Flashcards créées"
+          trend="+"
+          color="yellow"
+        />
       </section>
 
       <section className="grid grid-cols-[1.7fr_1fr] gap-6 mt-6">
         <div className="bg-white rounded-[28px] border border-slate-100 p-6 shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-2xl font-extrabold">Aujourd’hui · Jeu</h2>
-              <p className="text-slate-400 text-sm">2 sessions prévues</p>
+              <h2 className="text-2xl font-extrabold">
+                Aujourd’hui · {todayLabelCapitalized}
+              </h2>
+
+              <p className="text-slate-400 text-sm">
+                Session de révision recommandée
+              </p>
             </div>
 
             <Link to="/planning" className="text-[#8B6CF6] font-bold text-sm flex items-center gap-1">
@@ -156,13 +184,19 @@ function Dashboard() {
           </div>
 
           <div className="space-y-3">
-            {sessions.map((s) => (
-              <SessionCard key={s.id} session={s} />
-            ))}
+            <SessionCard
+              session={{
+                title: "Révision du jour",
+                subject: `${courses.length} cours · ${quizzes.length} quiz disponibles`,
+                time: `${todos.filter((t) => t.status !== "done").length} tâches restantes`,
+                color: "#8B6CF6",
+                short: "Me",
+              }}
+            />
           </div>
         </div>
 
-        <ProgressCard />
+        <ProgressCard todos={todos} />
       </section>
 
       <section className="grid grid-cols-[1.7fr_1fr] gap-6 mt-6">
@@ -175,8 +209,17 @@ function Dashboard() {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            {courses.map((course) => (
-              <CourseCard key={course.title} course={course} />
+            {courses.slice(0, 4).map((course, index) => (
+              <CourseCard
+                key={course.id}
+                course={{
+                  title: course.title,
+                  subject: "Cours",
+                  progress: Math.floor(Math.random() * 60) + 30,
+                  color: ["#8B6CF6", "#60A5FA", "#34D399", "#FBBF24"][index % 4],
+                  info: "Cours importé",
+                }}
+              />
             ))}
           </div>
         </div>
@@ -190,15 +233,25 @@ function Dashboard() {
           </div>
 
           <div className="space-y-5">
-            {todos.map((todo) => (
-              <TodoItem key={todo.title} todo={todo} />
+            {todos.slice(0, 3).map((todo, index) => (
+              <TodoItem
+                key={todo.id}
+                todo={{
+                  title: todo.title,
+                  subject: todo.due_date || "Sans date",
+                  color: ["#8B6CF6", "#F472B6", "#34D399"][index % 3],
+                }}
+              />
             ))}
           </div>
 
-          <button className="mt-6 w-full h-12 rounded-2xl border-2 border-dashed border-slate-200 text-slate-500 font-bold flex items-center justify-center gap-2 hover:border-[#8B6CF6] hover:text-[#8B6CF6] transition">
+          <Link
+            to="/todo"
+            className="mt-6 w-full h-12 rounded-2xl border-2 border-dashed border-slate-200 text-slate-500 font-bold flex items-center justify-center gap-2 hover:border-[#8B6CF6] hover:text-[#8B6CF6] transition"
+          >
             <Plus size={18} />
             Ajouter une tâche
-          </button>
+          </Link>
         </div>
       </section>
 
@@ -212,7 +265,20 @@ function Dashboard() {
   );
 }
 
-function ProgressCard() {
+
+
+function ProgressCard({ todos }) {
+  const completedTodos = todos.filter(
+    (t) => t.status === "done"
+  ).length;
+
+  const totalTodos = todos.length;
+
+  const progress =
+    totalTodos > 0
+      ? Math.round((completedTodos / totalTodos) * 100)
+      : 0;
+
   return (
     <div className="rounded-[28px] bg-[#1E293B] text-white p-6 shadow-sm overflow-hidden relative">
       <div className="absolute -right-16 -top-16 w-52 h-52 bg-[#8B6CF6]/40 rounded-full blur-3xl" />
@@ -222,16 +288,24 @@ function ProgressCard() {
           Objectif semaine
         </p>
 
-        <h2 className="text-5xl font-extrabold mt-4">6h42</h2>
-        <p className="text-slate-300 mt-2">sur 8h prévues</p>
+        <h2 className="text-5xl font-extrabold mt-4">
+          {completedTodos}/{totalTodos}
+        </h2>
+
+        <p className="text-slate-300 mt-2">
+          tâches terminées
+        </p>
 
         <div className="flex justify-between text-sm text-slate-300 mt-6">
           <span>Progression</span>
-          <span>84%</span>
+          <span>{progress}%</span>
         </div>
 
         <div className="h-3 bg-white/10 rounded-full mt-2 overflow-hidden">
-          <div className="h-full w-[84%] bg-yellow-400 rounded-full" />
+          <div
+            className="h-full bg-yellow-400 rounded-full"
+            style={{ width: `${progress}%` }}
+          />
         </div>
       </div>
     </div>
@@ -272,7 +346,11 @@ function SessionCard({ session }) {
         className="w-14 h-14 rounded-2xl text-white font-bold flex items-center justify-center"
         style={{ background: session.color }}
       >
-        {session.short}
+        <img
+          src={dashboardImg}
+          alt="Memi"
+          className="w-10 h-10 object-contain"
+        />
       </div>
 
       <div className="flex-1">
@@ -282,9 +360,12 @@ function SessionCard({ session }) {
         </p>
       </div>
 
-      <button className="text-slate-400 font-bold hover:text-[#8B6CF6]">
+      <Link
+        to="/flashcards"
+        className="text-slate-400 font-bold hover:text-[#8B6CF6]"
+      >
         Commencer →
-      </button>
+      </Link>
     </div>
   );
 }

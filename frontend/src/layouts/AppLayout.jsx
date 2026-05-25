@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Outlet, NavLink } from "react-router-dom";
+import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   BookOpen,
@@ -19,6 +19,14 @@ import logo from "/src/assets/logo.png";
 function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
+  const navigate = useNavigate();
+
+  const logout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("name");
+
+    navigate("/");
+  };
 
   useEffect(() => {
     if (darkMode) {
@@ -34,9 +42,8 @@ function AppLayout() {
 
   return (
     <div
-      className={`h-screen overflow-hidden font-[Poppins] flex transition-colors ${
-        darkMode ? "bg-[#0F172A] text-white" : "bg-[#F8FAFC] text-[#1E293B]"
-      }`}
+      className={`h-screen overflow-hidden font-[Poppins] flex transition-colors ${darkMode ? "bg-[#0F172A] text-white" : "bg-[#F8FAFC] text-[#1E293B]"
+        }`}
     >
       {!sidebarOpen && (
         <button
@@ -49,11 +56,10 @@ function AppLayout() {
 
       {sidebarOpen && (
         <aside
-          className={`w-[250px] h-screen shrink-0 p-6 flex flex-col justify-between overflow-y-auto border-r transition-colors ${
-            darkMode
+          className={`w-[250px] h-screen shrink-0 p-6 flex flex-col justify-between overflow-y-auto border-r transition-colors ${darkMode
               ? "bg-[#111827] border-slate-800"
               : "bg-white border-slate-100"
-          }`}
+            }`}
         >
           <div>
             <button
@@ -75,28 +81,25 @@ function AppLayout() {
 
             <button
               onClick={() => setDarkMode((v) => !v)}
-              className={`w-full mb-6 h-11 rounded-2xl font-bold flex items-center justify-center gap-2 transition ${
-                darkMode
+              className={`w-full mb-6 h-11 rounded-2xl font-bold flex items-center justify-center gap-2 transition ${darkMode
                   ? "bg-slate-800 text-white hover:bg-slate-700"
                   : "bg-[#8B6CF6]/10 text-[#8B6CF6] hover:bg-[#8B6CF6]/20"
-              }`}
+                }`}
             >
               {darkMode ? <Sun size={18} /> : <Moon size={18} />}
               {darkMode ? "Mode clair" : "Mode sombre"}
             </button>
 
             <div
-              className={`rounded-3xl p-4 mb-7 border ${
-                darkMode
+              className={`rounded-3xl p-4 mb-7 border ${darkMode
                   ? "bg-yellow-500/10 border-yellow-900/40"
                   : "bg-yellow-50 border-yellow-100"
-              }`}
+                }`}
             >
               <div className="flex items-center gap-3">
                 <div
-                  className={`w-11 h-11 rounded-2xl flex items-center justify-center text-yellow-500 ${
-                    darkMode ? "bg-yellow-500/20" : "bg-yellow-100"
-                  }`}
+                  className={`w-11 h-11 rounded-2xl flex items-center justify-center text-yellow-500 ${darkMode ? "bg-yellow-500/20" : "bg-yellow-100"
+                    }`}
                 >
                   <Flame size={22} />
                 </div>
@@ -115,13 +118,12 @@ function AppLayout() {
                 {[1, 2, 3, 4, 5, 6, 7].map((item) => (
                   <div
                     key={item}
-                    className={`h-2 flex-1 rounded-full ${
-                      item <= 5
+                    className={`h-2 flex-1 rounded-full ${item <= 5
                         ? "bg-yellow-400"
                         : darkMode
-                        ? "bg-yellow-500/20"
-                        : "bg-yellow-100"
-                    }`}
+                          ? "bg-yellow-500/20"
+                          : "bg-yellow-100"
+                      }`}
                   />
                 ))}
               </div>
@@ -149,14 +151,17 @@ function AppLayout() {
 
               <div className="flex-1">
                 <h3 className={`font-bold text-sm ${darkMode ? "text-white" : "text-[#1E293B]"}`}>
-                  Faiza
+                  {localStorage.getItem("name") || "Étudiant"}
                 </h3>
               </div>
 
               <Settings size={18} className="text-slate-400" />
             </div>
 
-            <button className="flex items-center gap-2 text-slate-400 text-sm hover:text-[#8B6CF6]">
+            <button
+              onClick={logout}
+              className="flex items-center gap-2 text-slate-400 text-sm hover:text-[#8B6CF6]"
+            >
               <LogOut size={18} />
               Se déconnecter
             </button>
@@ -165,9 +170,8 @@ function AppLayout() {
       )}
 
       <main
-        className={`flex-1 min-w-0 h-screen overflow-y-auto transition-colors ${
-          darkMode ? "bg-[#0F172A]" : "bg-[#F8FAFC]"
-        }`}
+        className={`flex-1 min-w-0 h-screen overflow-y-auto transition-colors ${darkMode ? "bg-[#0F172A]" : "bg-[#F8FAFC]"
+          }`}
       >
         <Outlet />
       </main>
@@ -180,10 +184,9 @@ function MenuItem({ to, icon, label, darkMode }) {
     <NavLink
       to={to}
       className={({ isActive }) =>
-        `flex items-center gap-3 rounded-2xl px-4 py-3 font-bold transition ${
-          isActive
-            ? "bg-[#8B6CF6]/15 text-[#8B6CF6]"
-            : darkMode
+        `flex items-center gap-3 rounded-2xl px-4 py-3 font-bold transition ${isActive
+          ? "bg-[#8B6CF6]/15 text-[#8B6CF6]"
+          : darkMode
             ? "text-slate-300 hover:bg-slate-800"
             : "text-slate-500 hover:bg-slate-50"
         }`

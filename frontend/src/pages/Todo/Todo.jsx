@@ -69,7 +69,7 @@ function Todo() {
         const formatted = data.map((t) => ({ 
           id: t.id,
           title: t.title,
-          subject: t.subject,
+          subject: "Général",
           priority: t.priority,
           due: t.due,
           done: t.done,
@@ -128,7 +128,7 @@ function Todo() {
     const newTodo = {
       id: savedTodo.id,
       title: savedTodo.title,
-      subject: "Général",
+      subject: subject.trim() || "Général",
       priority: savedTodo.priority,
       due: savedTodo.due_date || "",
       done: savedTodo.status === "done",
@@ -179,14 +179,36 @@ function Todo() {
   }
 };
 
-  const saveEdit = (updatedTodo) => {
-    setTodos((prev) =>
-      prev.map((todo) =>
-        todo.id === updatedTodo.id ? updatedTodo : todo
-      )
-    );
-    setEditingTodo(null);
-  };
+  const saveEdit = async (updatedTodo) => {
+    try {
+        const updated = await updateTodo(updatedTodo.id, {
+            title: updatedTodo.title,
+            priority: updatedTodo.priority,
+            due_date: updatedTodo.due,
+            status: updatedTodo.done ? "done" : "todo",
+        });
+
+        setTodos((prev) =>
+            prev.map((todo) =>
+                todo.id === updatedTodo.id
+                    ? {
+                          ...todo,
+                          title: updated.title,
+                          priority: updated.priority,
+                          due: updated.due_date,
+                          done: updated.status === "done",
+                      }
+                    : todo
+            )
+        );
+
+        setEditingTodo(null);
+
+    } catch (error) {
+        console.error(error);
+        alert("Erreur modification tâche.");
+    }
+};
 
   return (
     <div className="p-8 max-w-[1200px] mx-auto text-[#1E293B]">

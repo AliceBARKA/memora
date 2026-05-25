@@ -19,3 +19,5 @@ Rules:
 Course content:
 {text}
 """
+
+
