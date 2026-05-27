@@ -1,17 +1,32 @@
-from django.contrib.auth.models import User
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import CoursePDF, Deck, Quiz,Flashcard
-from .serializers import CoursePDFSerializer, DeckSerializer, QuizSerializer
-import fitz 
-from ai_service.gemini_service import (
-    generate_flashcards_with_gemini,
-    generate_summary_with_gemini,
-    ask_pdf_with_gemini,
-    generate_quiz_with_gemini,
-    generate_personal_quiz_with_gemini,
+from rest_framework import status
+
+from .models import (
+    CoursePDF,
+    Deck,
+    Flashcard,
+    Quiz,
+    QuizQuestion,
+    QuizAttempt,
 )
 
+from .serializers import (
+    CoursePDFSerializer,
+    DeckSerializer,
+    QuizSerializer,
+    QuizAttemptSerializer,
+)
+
+from ai_service.pdf_extractor import extract_text_from_pdf
+from ai_service.pipeline import generate_flashcards_pipeline
+
+from ai_service.groq_service import (
+    generate_summary_with_groq,
+    generate_quiz_with_groq,
+    generate_personal_quiz_with_groq,
+    ask_pdf_with_groq,
+)
 
 @api_view(["GET"])
 def get_courses(request):
@@ -20,6 +35,7 @@ def get_courses(request):
 )
     serializer = CoursePDFSerializer(courses, many=True)
     return Response(serializer.data)
+
 
 @api_view(["POST"])
 def upload_course(request):
@@ -39,6 +55,7 @@ def upload_course(request):
 
     serializer = CoursePDFSerializer(course)
     return Response(serializer.data, status=201)
+
 
 @api_view(["GET"])
 def get_decks(request):
@@ -68,24 +85,43 @@ def generate_flashcards_from_course(request, course_id):
     except CoursePDF.DoesNotExist:
         return Response({"error": "Cours introuvable"}, status=404)
 
-    text = ""
-
-    with fitz.open(course.file.path) as pdf:
-        for page in pdf:
-            text += page.get_text()
+    try:
+        text = extract_text_from_pdf(course.file.path)
+    except Exception as e:
+        return Response({
+            "error": "Erreur pendant l'extraction du PDF",
+            "details": str(e)
+        }, status=500)
 
     if not text.strip():
-        return Response({"error": "Impossible d'extraire le texte du PDF"}, status=400)
+        return Response({
+            "error": "Impossible d'extraire le texte du PDF"
+        }, status=400)
 
-    generated_cards = generate_flashcards_with_gemini(text[:12000])
-    print("FLASHCARDS GEMINI =", generated_cards)
+    try:
+        generated_cards = generate_flashcards_pipeline(text)
+    except Exception as e:
+        return Response({
+            "error": "Erreur pendant la génération des flashcards",
+            "details": str(e)
+        }, status=500)
 
-    deck = Deck.objects.create(
-        title=f"Flashcards - {course.title}",
-        description="Flashcards générées automatiquement par l'IA",
-        user=course.user,
+    if not generated_cards:
+        return Response({
+            "error": "Aucune flashcard générée"
+        }, status=400)
+
+    deck, created = Deck.objects.get_or_create(
         CoursePDF=course,
+        user=course.user,
+        defaults={
+            "title": f"Flashcards - {course.title}",
+            "description": "Flashcards générées automatiquement par l'IA",
+        }
     )
+    
+    if not created:
+        deck.flashcards.all().delete()
 
     for card in generated_cards:
         Flashcard.objects.create(
@@ -96,11 +132,11 @@ def generate_flashcards_from_course(request, course_id):
         )
 
     return Response({
-    "already_exists": False,
-    "deck_id": deck.id,
-    "message": "Flashcards générées."
-})
-
+        "message": "Flashcards générées avec succès",
+        "course_id": course.id,
+        "deck_id": deck.id,
+        "cards_count": len(generated_cards),
+    }, status=201)
 
 
 @api_view(["DELETE"])
@@ -117,27 +153,40 @@ def delete_course(request, course_id):
 @api_view(["POST"])
 def generate_summary_from_course(request, course_id):
     try:
-        course = CoursePDF.objects.get(id=course_id, user=request.user)
+        course = CoursePDF.objects.get(id=course_id,user=request.user)
     except CoursePDF.DoesNotExist:
         return Response({"error": "Cours introuvable"}, status=404)
 
-    text = ""
-
-    with fitz.open(course.file.path) as pdf:
-        for page in pdf:
-            text += page.get_text()
+    try:
+        text = extract_text_from_pdf(course.file.path)
+    except Exception as e:
+        return Response({
+            "error": "Erreur pendant l'extraction du PDF",
+            "details": str(e)
+        }, status=500)
 
     if not text.strip():
-        return Response({"error": "Impossible d'extraire le texte du PDF"}, status=400)
+        return Response({
+            "error": "Impossible d'extraire le texte du PDF"
+        }, status=400)
 
-    summary = generate_summary_with_gemini(text[:12000])
+    try:
+        summary = generate_summary_with_groq(text)
+    except Exception as e:
+        return Response({
+            "error": "Erreur pendant la génération du résumé",
+            "details": str(e)
+        }, status=500)
 
     course.summary = summary
     course.save()
 
     serializer = CoursePDFSerializer(course)
-    return Response(serializer.data)
-
+    return Response({
+        "message": "Résumé généré avec succès",
+        "course_id": course.id,
+        "summary": summary,
+    }, status=201)
 
 
 @api_view(["POST"])
@@ -148,28 +197,31 @@ def ask_question_from_course(request, course_id):
         return Response({"error": "Question vide"}, status=400)
 
     try:
-        course = CoursePDF.objects.get(id=course_id, user=request.user)
+        course = CoursePDF.objects.get(
+            id=course_id,
+            user=request.user
+        )
+
     except CoursePDF.DoesNotExist:
         return Response({"error": "Cours introuvable"}, status=404)
 
-    text = ""
+    try:
+        text = extract_text_from_pdf(course.file.path)
 
-    with fitz.open(course.file.path) as pdf:
-        for page in pdf:
-            text += page.get_text()
+    except Exception as e:
+        return Response({
+            "error": "Erreur extraction PDF",
+            "details": str(e)
+        }, status=500)
 
-    if not text.strip():
-        return Response({"error": "Impossible d'extraire le texte du PDF"}, status=400)
-
-    answer = ask_pdf_with_gemini(text[:12000], question)
+    answer = ask_pdf_with_groq(text, question)
 
     return Response({
         "question": question,
         "answer": answer,
     })
 
-from rest_framework import status
-
+    
 @api_view(["DELETE"])
 def delete_deck(request, deck_id):
     try:
@@ -182,56 +234,32 @@ def delete_deck(request, deck_id):
 
 
 @api_view(["POST"])
-def generate_quiz_from_course(request, course_id):
-    try:
-        course = CoursePDF.objects.get(id=course_id, user=request.user)
-    except CoursePDF.DoesNotExist:
-        return Response({"error": "Cours introuvable"}, status=404)
-
-    text = ""
-
-    with fitz.open(course.file.path) as pdf:
-        for page in pdf:
-            text += page.get_text()
-
-    if not text.strip():
-        return Response({"error": "Impossible d'extraire le texte du PDF"}, status=400)
-
-    questions = generate_quiz_with_gemini(text[:12000])
-
-    quiz = Quiz.objects.create(
-    title=f"Quiz - {course.title}",
-    subject="Depuis PDF",
-    questions=questions,
-    user=course.user,
-    course=course,
-)
-
-    serializer = QuizSerializer(quiz)
-    return Response(serializer.data)
-
-
-@api_view(["POST"])
 def generate_personal_quiz(request):
     topic = request.data.get("topic", "")
 
     if not topic.strip():
         return Response({"error": "Sujet vide"}, status=400)
 
-    questions = generate_personal_quiz_with_gemini(topic)
-
-    user = request.user
+    generated_questions = generate_personal_quiz_with_groq(topic)
 
     quiz = Quiz.objects.create(
         title=topic,
         subject="Personnalisé",
-        questions=questions,
-        user=user,
+        user=request.user,
     )
 
-    serializer = QuizSerializer(quiz)
-    return Response(serializer.data)
+    for q in generated_questions:
+        QuizQuestion.objects.create(
+            quiz=quiz,
+            question=q.get("question", ""),
+            choices=q.get("choices", []),
+            correct_answer=q.get("correct_answer", ""),
+            explanation=q.get("explanation", ""),
+        )
 
+    serializer = QuizSerializer(quiz)
+
+    return Response(serializer.data, status=201)
 
 @api_view(["GET"])
 def get_quizzes(request):
@@ -248,3 +276,172 @@ def delete_quiz(request,quiz_id):
         return Response({"error":"Quiz introuvable"},status=404)
     quiz.delete()
     return Response({"message": "Quiz supprimé"})
+    
+
+@api_view(["POST"])
+def generate_quiz_from_deck(request, deck_id):
+    try:
+        deck = Deck.objects.get(
+    id=deck_id,
+    user=request.user
+)
+    except Deck.DoesNotExist:
+        return Response({"error": "Deck introuvable"}, status=404)
+
+    flashcards = deck.flashcards.all()
+
+    if not flashcards.exists():
+        return Response({"error": "Aucune flashcard trouvée pour ce deck"}, status=400)
+
+    flashcards_data = [
+        {
+            "question": card.question,
+            "answer": card.answer,
+            "difficulty": card.difficulty,
+        }
+        for card in flashcards
+    ]
+
+    try:
+        generated_questions = generate_quiz_with_groq(flashcards_data)
+    except Exception as e:
+        return Response({
+            "error": "Erreur pendant la génération du quiz",
+            "details": str(e)
+        }, status=500)
+
+    if not generated_questions:
+        return Response({"error": "Aucune question générée"}, status=400)
+
+    quiz = Quiz.objects.create(
+        title=deck.title.replace("Flashcards - ", ""),
+        deck=deck,
+        user=deck.user,
+    )
+
+    for q in generated_questions:
+        QuizQuestion.objects.create(
+            quiz=quiz,
+            question=q.get("question", ""),
+            choices=q.get("choices", []),
+            correct_answer=q.get("correct_answer", ""),
+            explanation=q.get("explanation", ""),
+        )
+
+    serializer = QuizSerializer(quiz)
+
+    return Response(serializer.data, status=201)
+
+
+@api_view(["POST"])
+def submit_quiz(request, quiz_id):
+    try:
+        quiz = Quiz.objects.prefetch_related("quiz_questions").get(id=quiz_id)
+    except Quiz.DoesNotExist:
+        return Response({"error": "Quiz introuvable"}, status=404)
+
+    answers = request.data.get("answers", {})
+
+    score = 0
+    total = quiz.quiz_questions.count()
+    corrections = []
+
+    if total == 0:
+        return Response({"error": "Ce quiz ne contient aucune question"}, status=400)
+
+    for question in quiz.quiz_questions.all():
+        user_answer = answers.get(str(question.id))
+        is_correct = user_answer == question.correct_answer
+
+        if is_correct:
+            score += 1
+
+        corrections.append({
+            "question_id": question.id,
+            "question": question.question,
+            "choices": question.choices,
+            "user_answer": user_answer,
+            "correct_answer": question.correct_answer,
+            "is_correct": is_correct,
+            "explanation": question.explanation,
+        })
+
+    percentage = round((score / total) * 100, 2)
+
+    attempt = QuizAttempt.objects.create(
+        quiz=quiz,
+        user=quiz.user,
+        score=score,
+        total_questions=total,
+        percentage=percentage,
+    )
+
+    return Response({
+        "message": "Quiz corrigé avec succès",
+        "quiz_id": quiz.id,
+        "attempt_id": attempt.id,
+        "score": score,
+        "total_questions": total,
+        "percentage": percentage,
+        "corrections": corrections,
+    }, status=201)
+
+@api_view(["GET"])
+def quiz_attempt_history(request, quiz_id):
+    try:
+        quiz = Quiz.objects.get(
+    id=quiz_id,
+    user=request.user
+)
+    except Quiz.DoesNotExist:
+        return Response({"error": "Quiz introuvable"}, status=404)
+
+    attempts = QuizAttempt.objects.filter(quiz=quiz).order_by("-completed_at")
+
+    data = [
+        {
+            "attempt_id": attempt.id,
+            "score": attempt.score,
+            "total_questions": attempt.total_questions,
+            "percentage": attempt.percentage,
+            "completed_at": attempt.completed_at,
+        }
+        for attempt in attempts
+    ]
+
+    return Response({
+        "quiz_id": quiz.id,
+        "quiz_title": quiz.title,
+        "attempts": data,
+    })
+
+
+@api_view(["GET"])
+def quiz_statistics(request, quiz_id):
+    try:
+        quiz = Quiz.objects.get(id=quiz_id)
+    except Quiz.DoesNotExist:
+        return Response({"error": "Quiz introuvable"}, status=404)
+
+    attempts = QuizAttempt.objects.filter(quiz=quiz)
+
+    if not attempts.exists():
+        return Response({
+            "quiz_id": quiz.id,
+            "quiz_title": quiz.title,
+            "attempts_count": 0,
+            "best_score": None,
+            "average_percentage": None,
+            "last_percentage": None,
+        })
+
+    percentages = [attempt.percentage for attempt in attempts]
+
+    return Response({
+        "quiz_id": quiz.id,
+        "quiz_title": quiz.title,
+        "attempts_count": attempts.count(),
+        "best_score": max(percentages),
+        "average_percentage": round(sum(percentages) / len(percentages), 2),
+        "last_percentage": attempts.order_by("-completed_at").first().percentage,
+    })

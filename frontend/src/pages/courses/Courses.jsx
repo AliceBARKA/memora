@@ -124,25 +124,25 @@ function Courses() {
   try {
     setLoadingSummary(true);
 
-    const updatedCourse = await generateSummaryFromCourse(courseId);
+    const result = await generateSummaryFromCourse(courseId);
 
-    if (!updatedCourse.summary || updatedCourse.summary.trim() === "") {
+    if (!result.summary || result.summary.trim() === "") {
       alert("Le résumé n'a pas été généré.");
       return;
     }
 
     setCourses((prev) =>
       prev.map((course) =>
-        course.id === updatedCourse.id
-          ? { ...course, summary: updatedCourse.summary }
+        course.id === courseId
+          ? { ...course, summary: result.summary }
           : course
       )
     );
 
-    if (openCourse?.id === updatedCourse.id) {
+    if (openCourse?.id === courseId) {
       setOpenCourse((prev) => ({
         ...prev,
-        summary: updatedCourse.summary,
+        summary: result.summary,
       }));
     }
   } catch (error) {

@@ -1,38 +1,75 @@
-from django.contrib.auth.models import User
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+
 from .models import Availability, RevisionPlan, RevisionSession
+from .serializers import (
+    AvailabilitySerializer,
+    RevisionPlanSerializer,
+    RevisionSessionSerializer,
+)
 
-from .serializers import (AvailabilitySerializer, RevisionPlanSerializer, RevisionSessionSerializer)
 
-# Create your views here.
-@api_view(['GET'])
-def get_revision_plans(request):
-    plans = RevisionPlan.objects.all().order_by('-created_at')
-    serializer = RevisionPlanSerializer(plans, many=True)
-    return Response(serializer.data)
+@api_view(["GET", "POST"])
+def revision_plan_create(request):
+    if request.method == "GET":
+        plans = RevisionPlan.objects.filter(
+            user=request.user
+        ).order_by("-created_at")
 
-@api_view(['POST'])
-def create_revision_plan(request):
-    user=request.user
+        serializer = RevisionPlanSerializer(plans, many=True)
+        return Response(serializer.data)
 
-    plan = RevisionPlan.objects.create(
-        title = request.data.get('title'),
-        description = request.data.get('description'),
-        user = user,
-    )
+    if request.method == "POST":
+        serializer = RevisionPlanSerializer(
+            data={**request.data, "user": request.user.id}
+        )
 
-    serializer = RevisionPlanSerializer(plan)
-    return Response(serializer.data, status=201)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=201)
 
-@api_view(["GET"])
-def get_revision_sessions(request):
-    sessions = RevisionSession.objects.all().order_by("-date")
-    serializer = RevisionSessionSerializer(sessions, many=True)
-    return Response(serializer.data)
+        return Response(serializer.errors, status=400)
 
-@api_view(['GET'])
-def get_availabilities(request):
-    availabilities = Availability.objects.all()
-    serializer = AvailabilitySerializer(availabilities, many=True)
-    return Response(serializer.data)
+
+@api_view(["GET", "POST"])
+def availability_list_create(request):
+    if request.method == "GET":
+        availabilities = Availability.objects.filter(
+            user=request.user
+        )
+
+        serializer = AvailabilitySerializer(availabilities, many=True)
+        return Response(serializer.data)
+
+    if request.method == "POST":
+        serializer = AvailabilitySerializer(
+            data={**request.data, "user": request.user.id}
+        )
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=201)
+
+        return Response(serializer.errors, status=400)
+
+
+@api_view(["GET", "POST"])
+def revision_session_list_create(request):
+    if request.method == "GET":
+        sessions = RevisionSession.objects.filter(
+            user=request.user
+        ).order_by("-date")
+
+        serializer = RevisionSessionSerializer(sessions, many=True)
+        return Response(serializer.data)
+
+    if request.method == "POST":
+        serializer = RevisionSessionSerializer(
+            data={**request.data, "user": request.user.id}
+        )
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=201)
+
+        return Response(serializer.errors, status=400)

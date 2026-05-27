@@ -47,7 +47,7 @@ function Quiz() {
     const fileInputRef = useRef(null);
 
     const [quizzes, setQuizzes] = useState(quizzesData);
-    const [courses, setCourses] = useState([]);
+    const [decks, setDecks] = useState([]);
     const [showCourses, setShowCourses] = useState(false);
     const [loadingQuizCourseId, setLoadingQuizCourseId] = useState(null);
     const [showPersonalForm, setShowPersonalForm] = useState(false);
@@ -60,40 +60,50 @@ function Quiz() {
     const [showHint, setShowHint] = useState(false);
     const [finished, setFinished] = useState(false);
 
+    const authConfig = {
+        headers: {
+            Authorization: `Token ${localStorage.getItem("token")}`,
+        },
+    };
+
     useEffect(() => {
-        fetchCourses();
+        fetchDecks();
         fetchQuizzes();
     }, []);
 
-    const fetchCourses = async () => {
-
-        const token = localStorage.getItem("token");
-
-        const authConfig = {
-            headers: {
-                Authorization: `Token ${token}`,
-            },
-        };
+    const fetchDecks = async () => {
         try {
-            const res = await axios.get("http://127.0.0.1:8000/api/courses/",authConfig);
-            setCourses(res.data);
+            const res = await axios.get(
+                "http://127.0.0.1:8000/api/courses/decks/",
+                authConfig
+            );
+
+            setDecks(res.data);
+
         } catch (err) {
             console.error(err);
         }
-    }
+    };
 
     const fetchQuizzes = async () => {
         try {
-            const res = await axios.get("http://127.0.0.1:8000/api/courses/quizzes/",authConfig);
+            const res = await axios.get("http://127.0.0.1:8000/api/courses/quizzes/", authConfig);
 
             const formatted = res.data.map((quiz) => ({
                 id: quiz.id,
-                title: quiz.title,
+                title: quiz.title
+                    .replace("Flashcards - ", "")
+                    .replace("Quiz - ", ""),
                 subject: quiz.subject,
                 color: quiz.subject === "Personnalisé" ? "#FBBF24" : "#8B6CF6",
                 time: "5 min",
                 difficulty: "IA",
-                questions: quiz.questions,
+                questions: (quiz.quiz_questions || []).map((q) => ({
+                    question: q.question,
+                    options: q.choices,
+                    answer: q.choices.indexOf(q.correct_answer),
+                    hint: q.explanation,
+                })),
             }));
 
             setQuizzes(formatted);
@@ -102,9 +112,11 @@ function Quiz() {
         }
     };
 
-    const generateQuizFromCourse = async (course) => {
+    const generateQuizFromDeck = async (deck) => {
+        const cleanDeckTitle = deck.title.replace("Flashcards - ", "");
+
         const existingQuiz = quizzes.find(
-            (q) => q.title === `Quiz - ${course.title}`
+            (q) => q.title === cleanDeckTitle
         );
 
         if (existingQuiz) {
@@ -113,21 +125,29 @@ function Quiz() {
         }
 
         try {
-            setLoadingQuizCourseId(course.id);
+            setLoadingQuizCourseId(deck.id);
 
             const res = await axios.post(
-                `http://127.0.0.1:8000/api/courses/${course.id}/generate-quiz/`
-                ,authConfig
+                `http://127.0.0.1:8000/api/courses/decks/${deck.id}/generate-quiz/`,
+                {},
+                authConfig
             );
 
             const newQuiz = {
                 id: res.data.id,
-                title: res.data.title,
+                title: res.data.title
+                    .replace("Flashcards - ", "")
+                    .replace("Quiz - ", ""),
                 subject: res.data.subject,
                 color: "#8B6CF6",
                 time: "5 min",
                 difficulty: "IA",
-                questions: res.data.questions,
+                questions: (res.data.quiz_questions || []).map((q) => ({
+                    question: q.question,
+                    options: q.choices,
+                    answer: q.choices.indexOf(q.correct_answer),
+                    hint: q.explanation,
+                })),
             };
 
             setQuizzes((prev) => [newQuiz, ...prev]);
@@ -150,7 +170,8 @@ function Quiz() {
                 "http://127.0.0.1:8000/api/courses/generate-personal-quiz/",
                 {
                     topic: personalTopic,
-                },authConfig
+                },
+                authConfig
             );
 
             const newQuiz = {
@@ -160,7 +181,12 @@ function Quiz() {
                 color: "#FBBF24",
                 time: "6 min",
                 difficulty: "IA",
-                questions: res.data.questions,
+                questions: (res.data.quiz_questions || []).map((q) => ({
+                    question: q.question,
+                    options: q.choices,
+                    answer: q.choices.indexOf(q.correct_answer),
+                    hint: q.explanation,
+                })),
             };
 
             setQuizzes((prev) => [newQuiz, ...prev]);
@@ -176,7 +202,7 @@ function Quiz() {
 
     const deleteQuiz = async (quizId) => {
         try {
-            await axios.delete(`http://127.0.0.1:8000/api/courses/quizzes/delete/${quizId}/`,authConfig);
+            await axios.delete(`http://127.0.0.1:8000/api/courses/quizzes/delete/${quizId}/`, authConfig);
             setQuizzes((prev) => prev.filter((q) => q.id !== quizId));
         } catch (err) {
             console.error(err);
@@ -309,21 +335,21 @@ function Quiz() {
                                 </p>
 
                                 <div className="space-y-1 max-h-44 overflow-y-auto pr-1">
-                                    {courses.map((course) => (
+                                    {decks.map((deck) => (
                                         <button disabled={loadingQuizCourseId !== null}
-                                            key={course.id}
+                                            key={deck.id}
                                             onClick={() => {
-                                                generateQuizFromCourse(course);
+                                                generateQuizFromDeck(deck);
                                             }}
                                             className="w-full text-left px-4 py-3 rounded-xl hover:bg-[#F3F0FF] transition text-slate-700 font-medium"
                                         >
-                                            {loadingQuizCourseId === course.id ? (
+                                            {loadingQuizCourseId === deck.id ? (
                                                 <span className="flex items-center gap-2">
                                                     <span className="w-4 h-4 border-2 border-[#8B6CF6] border-t-transparent rounded-full animate-spin"></span>
                                                     Génération...
                                                 </span>
                                             ) : (
-                                                course.title
+                                                deck.title.replace("Flashcards - ", "")
                                             )}
                                         </button>
                                     ))}
@@ -435,6 +461,13 @@ function QuizArena({
     nextQuestion,
     restart,
 }) {
+    if (!question) {
+        return (
+            <div className="p-10 text-center text-red-500 font-bold">
+                Aucune question disponible pour ce quiz.
+            </div>
+        );
+    }
     const total = quiz.questions.length;
     const progress = ((step + 1) / total) * 100;
 
