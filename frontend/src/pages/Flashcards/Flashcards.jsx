@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import flashcard from "/src/assets/flashcard.png";
+import memiImage from "/src/assets/mascot.png";
 import { getDecks, uploadCoursePDF, generateFlashcardsFromCourse } from "../../services/api";
 import {
   ChevronLeft,
@@ -77,7 +78,11 @@ function Flashcards() {
 
    if (!deck) {
   return (
-    <div className="p-8 max-w-[1500px] mx-auto text-[#1E293B]">
+    <div className="relative min-h-screen p-8 max-w-[1500px] mx-auto text-[#1E293B] overflow-hidden">
+        <div className="absolute inset-0 -z-10 bg-gradient-to-br from-[#F8FAFC] via-[#F3E8FF] to-[#EEF2FF]" />
+        <div className="absolute -top-32 -right-32 -z-10 w-96 h-96 rounded-full bg-[#8B6CF6]/25 blur-3xl" />
+        <div className="absolute top-80 -left-32 -z-10 w-96 h-96 rounded-full bg-[#C084FC]/25 blur-3xl" />
+       <div className="absolute bottom-0 right-1/4 -z-10 w-80 h-80 rounded-full bg-[#60A5FA]/20 blur-3xl" />
 
       <input
         ref={fileInputRef}
@@ -152,7 +157,11 @@ function Flashcards() {
 
 
   return (
-    <div className="p-8 max-w-[1500px] mx-auto text-[#1E293B]">
+    <div className="relative min-h-screen p-8 max-w-[1500px] mx-auto text-[#1E293B] overflow-hidden">
+      <div className="absolute inset-0 -z-10 bg-gradient-to-br from-[#F8FAFC] via-[#F3E8FF] to-[#EEF2FF]" />
+      <div className="absolute -top-32 -right-32 -z-10 w-96 h-96 rounded-full bg-[#8B6CF6]/25 blur-3xl" />
+      <div className="absolute top-80 -left-32 -z-10 w-96 h-96 rounded-full bg-[#C084FC]/25 blur-3xl" />
+    <div className="absolute bottom-0 right-1/4 -z-10 w-80 h-80 rounded-full bg-[#60A5FA]/20 blur-3xl" />
       <input
         ref={fileInputRef}
         type="file"
@@ -204,8 +213,8 @@ function Flashcards() {
       {mode === "pdf" ? (
   <PdfGenerator onClick={() => window.location.href = "/courses"} />
 ) : (
-        <div className="grid lg:grid-cols-[360px_1fr] gap-7">
-          <aside>
+        <div className="space-y-8">
+          <aside className="max-w-[950px] mx-auto">
             <div className="relative mb-4">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
@@ -216,13 +225,14 @@ function Flashcards() {
               />
             </div>
 
-            <div className="bg-white rounded-3xl border border-slate-100 p-3">
+            <div className="bg-white rounded-3xl border border-slate-100 p-3 flex gap-3 overflow-x-auto">
               {filteredDecks.map((d) => (
                 <div
   key={d.id}
   onClick={() => setDeckId(d.id)}
-  className={`relative w-full text-left p-4 rounded-2xl flex gap-4 transition cursor-pointer ${d.id === deckId ? "bg-[#8B6CF6]/10" : "hover:bg-slate-50"
-    }`}
+  className={`relative min-w-[280px] text-left p-4 rounded-2xl flex gap-4 transition cursor-pointer ${
+  d.id === deckId ? "bg-[#8B6CF6]/10" : "hover:bg-slate-50"
+}`}
 >
                   <div
                     className="w-12 h-12 rounded-2xl text-white flex items-center justify-center"
@@ -291,149 +301,240 @@ await fetch(
           </aside>
 
 
-          <section>
-            <div className="bg-white rounded-3xl border border-slate-100 p-5 mb-5">
-              <div className="flex justify-between items-center">
-                <h2 className="font-extrabold">{deck.title}</h2>
-                <div className="flex items-center gap-4 text-sm text-slate-400 font-bold">
-                  <button onClick={restart} className="hover:text-[#8B6CF6]">
-                    Recommencer
-                  </button>
-                  <button
-  onClick={shuffleCards}
-  className="hover:text-[#8B6CF6] flex items-center gap-1"
->
-                    <Shuffle size={16} /> Mélanger
-                  </button>
-                  <span>{Math.min(idx + 1, total)} / {total}</span>
-                  
-                </div>
+          <section className="min-h-[680px] max-w-[950px] mx-auto">
+  <style>
+    {`
+      @keyframes memiFloat {
+        0%, 100% {
+          transform: translateY(0) rotate(-3deg);
+        }
+        50% {
+          transform: translateY(-14px) rotate(3deg);
+        }
+      }
+
+      @keyframes softPulse {
+        0%, 100% {
+          box-shadow: 0 25px 70px rgba(139, 108, 246, 0.18);
+        }
+        50% {
+          box-shadow: 0 35px 90px rgba(139, 108, 246, 0.30);
+        }
+      }
+    `}
+  </style>
+
+  <div className="bg-white/80 backdrop-blur rounded-[34px] border border-slate-100 p-5 mb-6 shadow-sm">
+    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+      <div>
+        <p className="text-xs font-extrabold uppercase tracking-wider text-[#8B6CF6]">
+          Session de révision
+        </p>
+        <h2 className="text-2xl font-extrabold text-[#1E293B] mt-1">
+          {deck.title}
+        </h2>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 text-sm font-bold">
+        <button
+          onClick={restart}
+          className="h-10 px-4 rounded-2xl bg-slate-50 text-slate-500 hover:text-[#8B6CF6] hover:bg-[#8B6CF6]/10 transition flex items-center gap-2"
+        >
+          <RotateCcw size={16} />
+          Recommencer
+        </button>
+
+        <button
+          onClick={shuffleCards}
+          className="h-10 px-4 rounded-2xl bg-slate-50 text-slate-500 hover:text-[#8B6CF6] hover:bg-[#8B6CF6]/10 transition flex items-center gap-2"
+        >
+          <Shuffle size={16} />
+          Mélanger
+        </button>
+
+        <span className="h-10 px-4 rounded-2xl bg-[#8B6CF6]/10 text-[#8B6CF6] flex items-center">
+          {Math.min(idx + 1, total)} / {total}
+        </span>
+      </div>
+    </div>
+
+    <div className="h-3 bg-slate-100 rounded-full mt-5 overflow-hidden">
+      <div
+        className="h-full rounded-full transition-all duration-500"
+        style={{
+          width: `${total ? Math.min((idx / total) * 100, 100) : 0}%`,
+          background: deck.color,
+        }}
+      />
+    </div>
+  </div>
+
+  {!finished ? (
+    <>
+      <div className="relative flex flex-col items-center justify-center">
+        <div className="hidden xl:flex absolute -top-10 right-8 items-center gap-3 z-20">
+          <div className="bg-white border border-slate-100 shadow-lg rounded-3xl px-4 py-3 text-sm font-bold text-[#1E293B]">
+            Clique sur la carte pour révéler la réponse 
+          </div>
+
+          <img
+            src={memiImage}
+            alt="Memi"
+            className="w-28 h-28 object-contain drop-shadow-2xl hover:scale-110 transition duration-300"
+            style={{ animation: "memiFloat 3.8s ease-in-out infinite" }}
+          />
+        </div>
+
+        <div
+          onClick={() => setFlipped(!flipped)}
+          className="relative w-full max-w-[850px] h-[500px] mx-auto cursor-pointer [perspective:1600px]"
+          style={{animation: "softPulse 4s ease-in-out infinite",
+            filter: "drop-shadow(0 35px 55px rgba(139, 108, 246, 0.28))",}}>
+          <div
+            className={`relative h-full w-full transition-transform duration-700 ease-out [transform-style:preserve-3d] ${
+              flipped ? "[transform:rotateY(180deg)]" : ""
+            }`}
+          >
+            {/* QUESTION */}
+            <div
+              className="absolute inset-0 rounded-[46px] border border-white/70 shadow-2xl flex flex-col items-center justify-center text-center p-12 overflow-hidden [backface-visibility:hidden] bg-white/80 backdrop-blur-xl"
+              style={{
+                background: `radial-gradient(circle at top left, ${deck.color}35, transparent 35%), linear-gradient(135deg, #ffffff 0%, #F8F5FF 50%, ${deck.color}18 100%)`,
+              }}
+            >
+              <div
+                className="absolute -top-28 -left-28 w-80 h-80 rounded-full blur-3xl opacity-30"
+                style={{ background: deck.color }}
+              />
+
+              <div className="relative mb-6 px-5 py-2 rounded-full bg-white/80 border border-slate-100 shadow-sm">
+                <p className="uppercase text-xs font-extrabold tracking-widest text-slate-400">
+                  Question
+                </p>
               </div>
 
-              <div className="h-2 bg-slate-100 rounded-full mt-4 overflow-hidden">
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${Math.min((idx / total) * 100, 100)}%`,
-                    background: deck.color,
-                  }}
-                />
-              </div>
+              <h2
+              className="relative text-3xl md:text-4xl font-extrabold leading-snug max-w-3xl"
+              style={{ color: "#000000", WebkitTextFillColor: "#000000" }}>
+                {card.front}
+              </h2>
+
+              <p className="relative mt-10 text-slate-400 font-semibold">
+        
+                Clique pour retourner la carte
+                style
+              </p>
             </div>
 
-            {!finished ? (
-              <>
-                <div
-                  onClick={() => setFlipped(!flipped)}
-                  className="h-[420px] cursor-pointer [perspective:1200px]"
-                >
-                  <div
-                    className={`relative h-full w-full transition-transform duration-700 ease-out [transform-style:preserve-3d] ${flipped ? "[transform:rotateY(180deg)]" : ""
-                      }`}
-                  >
-                    {/* QUESTION */}
-                    <div
-                      className="absolute inset-0 rounded-[34px] border border-slate-100 shadow-xl flex flex-col items-center justify-center text-center p-10 overflow-hidden [backface-visibility:hidden]"
-                      style={{
-                        background: `linear-gradient(135deg, ${deck.color}18, #ffffff 55%, ${deck.color}10)`,
-                      }}
-                    >
-                      <div
-                        className="absolute -top-24 -left-24 w-72 h-72 rounded-full blur-3xl opacity-30"
-                        style={{ background: deck.color }}
-                      />
+            {/* RÉPONSE */}
+            <div
+              className="absolute inset-0 rounded-[46px] border border-white/70 shadow-2xl flex flex-col items-center justify-center text-center p-12 overflow-hidden text-white [backface-visibility:hidden] [transform:rotateY(180deg)]"
+              style={{
+                background: `radial-gradient(circle at top right, rgba(255,255,255,0.30), transparent 35%), linear-gradient(135deg, ${deck.color}, #7C3AED 55%, #312E81)`,
+              }}
+            >
+              <div className="absolute -top-28 -right-28 w-80 h-80 rounded-full bg-white/20 blur-3xl" />
 
-                      <p className="relative uppercase text-sm font-extrabold text-slate-400">
-                        Question
-                      </p>
-
-                      <h2 className="relative mt-6 text-2xl md:text-3xl font-extrabold text-[#1E293B] leading-snug max-w-3xl">
-                        {card.front}
-                      </h2>
-
-                      <p className="relative mt-8 text-slate-400">
-                        Clique pour révéler la réponse
-                      </p>
-                    </div>
-
-                    {/* RÉPONSE */}
-                    <div
-                      className="absolute inset-0 rounded-[34px] shadow-xl flex flex-col items-center justify-center text-center p-10 overflow-hidden text-white [backface-visibility:hidden] [transform:rotateY(180deg)]"
-                      style={{
-                        background: `linear-gradient(135deg, ${deck.color}, #A78BFA)`,
-                      }}
-                    >
-                      <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full bg-white/20 blur-3xl" />
-
-                      <p className="relative uppercase text-sm font-extrabold text-white/80">
-                        Réponse
-                      </p>
-
-                      <div className="relative mt-6 max-h-[250px] overflow-y-auto px-4">
-                        <h2 className="text-xl md:text-2xl font-bold leading-relaxed">
-                          {card.back}
-                        </h2>
-                      </div>
-
-                      <p className="relative mt-8 text-white/80">
-                        Clique pour revoir la question
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-4 mt-6">
-                  <RateButton
-                    onClick={() => handleRate("hard")}
-                    label="Difficile"
-                    hint="Je l’ai oubliée"
-                    color="#EF4444"
-                    bg="bg-red-50"
-                  />
-                  <RateButton
-                    onClick={() => handleRate("good")}
-                    label="Bien"
-                    hint="Avec un effort"
-                    color="#3B82F6"
-                    bg="bg-blue-50"
-                  />
-                  <RateButton
-                    onClick={() => handleRate("easy")}
-                    label="Facile"
-                    hint="Sans hésiter"
-                    color="#10B981"
-                    bg="bg-emerald-50"
-                  />
-                </div>
-
-                <div className="flex justify-between mt-5 text-slate-400 font-semibold">
-                  <button onClick={() => setIdx((i) => Math.max(0, i - 1))}>
-                    <ChevronLeft size={16} className="inline" /> Précédente
-                  </button>
-
-                  <button
-                    onClick={() => setIdx((i) => Math.min(total - 1, i + 1))}
-                  >
-                    Suivante <ChevronRight size={16} className="inline" />
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="bg-white rounded-3xl border border-slate-100 p-12 text-center">
-                <h2 className="text-3xl font-extrabold">Bravo, flashcards terminé 🎉</h2>
-                <p className="text-slate-500 mt-2">
-                  Difficile : {progress.hard} · Bien : {progress.good} · Facile :{" "}
-                  {progress.easy}
+              <div className="relative mb-6 px-5 py-2 rounded-full bg-white/15 border border-white/20">
+                <p className="uppercase text-xs font-extrabold tracking-widest text-white/80">
+                  Réponse
                 </p>
-                <button
-                  onClick={restart}
-                  className="mt-6 bg-[#1E293B] text-white px-6 py-3 rounded-2xl font-bold"
-                >
-                  Recommencer
-                </button>
               </div>
-            )}
-          </section>
+
+              <div className="relative max-h-[280px] overflow-y-auto px-4">
+                <h2 className="text-2xl md:text-3xl font-bold leading-relaxed">
+                  {card.back}
+                </h2>
+              </div>
+
+              <p className="relative mt-10 text-white/80 font-semibold">
+                Clique pour revoir la question
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setFlipped(!flipped)}
+          className="mt-6 h-12 px-6 rounded-2xl bg-[#1E293B] text-white font-bold hover:bg-slate-700 transition"
+        >
+          {flipped ? "Revoir la question" : "Voir la réponse"}
+        </button>
+      </div>
+
+      <div className="grid md:grid-cols-3 gap-4 mt-8 max-w-[850px] mx-auto">
+        <RateButton
+          onClick={() => handleRate("hard")}
+          label="Difficile"
+          hint="Je l’ai oubliée"
+          color="#EF4444"
+          bg="bg-red-50"
+        />
+        <RateButton
+          onClick={() => handleRate("good")}
+          label="Bien"
+          hint="Avec un effort"
+          color="#3B82F6"
+          bg="bg-blue-50"
+        />
+        <RateButton
+          onClick={() => handleRate("easy")}
+          label="Facile"
+          hint="Sans hésiter"
+          color="#10B981"
+          bg="bg-emerald-50"
+        />
+      </div>
+
+      <div className="flex justify-between items-center mt-6 max-w-[850px] mx-auto">
+        <button
+          onClick={() => {
+            setIdx((i) => Math.max(0, i - 1));
+            setFlipped(false);
+          }}
+          className="h-11 px-5 rounded-2xl bg-white border border-slate-100 text-slate-500 font-bold hover:text-[#8B6CF6] transition"
+        >
+          <ChevronLeft size={16} className="inline" /> Précédente
+        </button>
+
+        <button
+          onClick={() => {
+            setIdx((i) => Math.min(total - 1, i + 1));
+            setFlipped(false);
+          }}
+          className="h-11 px-5 rounded-2xl bg-white border border-slate-100 text-slate-500 font-bold hover:text-[#8B6CF6] transition"
+        >
+          Suivante <ChevronRight size={16} className="inline" />
+        </button>
+      </div>
+    </>
+  ) : (
+    <div className="bg-white rounded-[34px] border border-slate-100 p-12 text-center shadow-xl max-w-[850px] mx-auto">
+      <img
+        src={memiImage}
+        alt="Memi"
+        className="w-28 h-28 object-contain mx-auto mb-5"
+        style={{ animation: "memiFloat 3.8s ease-in-out infinite" }}
+      />
+
+      <h2 className="text-3xl font-extrabold">
+        Bravo, session terminée 🎉
+      </h2>
+
+      <p className="text-slate-500 mt-3">
+        Difficile : {progress.hard} · Bien : {progress.good} · Facile :{" "}
+        {progress.easy}
+      </p>
+
+      <button
+        onClick={restart}
+        className="mt-6 bg-[#1E293B] text-white px-6 py-3 rounded-2xl font-bold hover:bg-slate-700 transition"
+      >
+        Recommencer
+      </button>
+    </div>
+  )}
+</section>
         </div>
       )}
     </div>
@@ -480,7 +581,7 @@ function RateButton({ onClick, label, hint, color, bg }) {
   return (
     <button
       onClick={onClick}
-      className={`${bg} rounded-2xl p-5 text-left hover:-translate-y-0.5 transition`}
+      className={`${bg} rounded-3xl p-5 text-left hover:-translate-y-1 hover:scale-[1.03] transition shadow-sm hover:shadow-xl border border-white`}
       style={{ color }}
     >
       <div className="font-extrabold text-xl">{label}</div>
