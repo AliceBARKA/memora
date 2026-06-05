@@ -405,3 +405,113 @@ Cours:
     )
 
     return response.choices[0].message.content.strip()
+
+def generate_revision_plan_with_groq(deck_title, flashcards, availabilities, exam_date, priority):
+    prompt = f"""
+Tu es un assistant pédagogique spécialisé dans l'organisation des révisions.
+
+À partir des informations suivantes, propose un planning de révision réaliste.
+
+Réponds uniquement avec un tableau JSON valide.
+Ne mets aucun texte avant ou après le JSON.
+Ne mets pas de markdown.
+
+Format obligatoire:
+[
+  {{
+    "day": "Lundi",
+    "start_time": "18:00",
+    "end_time": "19:00",
+    "objective": "Réviser les notions principales",
+    "session_type": "flashcards",
+    "todo_title": "Réviser les flashcards importantes",
+    "todo_description": "Revoir les cartes difficiles et refaire un quiz",
+    "todo_priority": "high"
+  }}
+]
+
+Contraintes:
+- utilise uniquement les disponibilités fournies
+- ne crée pas de séance hors disponibilité
+- adapte la charge selon la priorité: low, medium ou high
+- si l'examen est proche, propose des séances plus ciblées
+- privilégie les flashcards difficiles et les notions importantes
+- session_type doit être: flashcards, summary, quiz ou review
+- todo_priority doit être: low, medium ou high
+- réponds en français
+- propose maximum 5 séances
+
+Deck:
+{deck_title}
+
+Date d'examen:
+{exam_date}
+
+Priorité:
+{priority}
+
+Disponibilités:
+{json.dumps(availabilities, ensure_ascii=False)}
+
+Flashcards:
+{json.dumps(flashcards[:20], ensure_ascii=False)}
+"""
+
+    response = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {
+                "role": "system",
+                "content": "Tu réponds uniquement avec un tableau JSON valide. Aucun markdown."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            },
+        ],
+        temperature=0.2,
+    )
+
+    content = response.choices[0].message.content
+    sessions = extract_json_array(content)
+
+    valid_sessions = []
+
+    valid_days = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
+    valid_session_types = ["flashcards", "summary", "quiz", "review"]
+    valid_priorities = ["low", "medium", "high"]
+
+    for session in sessions:
+        day = normalize_text(session.get("day"))
+        start_time = normalize_text(session.get("start_time"))
+        end_time = normalize_text(session.get("end_time"))
+        objective = normalize_text(session.get("objective"))
+        session_type = normalize_text(session.get("session_type"))
+        todo_title = normalize_text(session.get("todo_title"))
+        todo_description = normalize_text(session.get("todo_description", ""))
+        todo_priority = normalize_text(session.get("todo_priority", priority)).lower()
+
+        if day not in valid_days:
+            continue
+
+        if session_type not in valid_session_types:
+            session_type = "review"
+
+        if todo_priority not in valid_priorities:
+            todo_priority = priority
+
+        if not start_time or not end_time or not objective or not todo_title:
+            continue
+
+        valid_sessions.append({
+            "day": day,
+            "start_time": start_time,
+            "end_time": end_time,
+            "objective": objective,
+            "session_type": session_type,
+            "todo_title": todo_title,
+            "todo_description": todo_description,
+            "todo_priority": todo_priority,
+        })
+
+    return valid_sessions
