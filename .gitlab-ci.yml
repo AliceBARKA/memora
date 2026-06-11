@@ -1,0 +1,23 @@
+image: node:20
+
+stages:
+  - deploy
+
+pages:
+  stage: deploy
+  script:
+    - export FRONTEND_DIR="frontend"
+    - if [ -d "Frontend" ]; then export FRONTEND_DIR="Frontend"; fi
+    - cd "$FRONTEND_DIR"
+    - npm ci
+    - npm run build
+    - cd ..
+    - rm -rf public
+    - mkdir public
+    - cp -r "$FRONTEND_DIR"/dist/* public/
+    - cp public/index.html public/404.html
+  artifacts:
+    paths:
+      - public
+  only:
+    - main
