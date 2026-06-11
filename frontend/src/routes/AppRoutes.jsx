@@ -13,6 +13,7 @@ const Planning = lazy(() => import("../pages/Planning/Planning"));
 const Todo = lazy(() => import("../pages/Todo/Todo"));
 const VerifyEmail = lazy(() => import("../pages/VerifyEmail/VerifyEmail"));
 const ResetPassword = lazy(() => import("../pages/ResetPassword/ResetPassword"));
+const Forum = lazy(() => import("../pages/Forum/Forum")); 
 
 function ProtectedRoute({ children }) {
   const token = localStorage.getItem("token");
@@ -47,7 +48,7 @@ function AppRoutes() {
       <Route path="/quiz" element={<Quiz />} />
       <Route path="/planning" element={<Planning />} />
       <Route path="/todo" element={<Todo />} />
-      
+      <Route path="/forum" element={<Forum />} />
     </Route>
   </Routes>
   </Suspense>

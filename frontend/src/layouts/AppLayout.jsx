@@ -7,6 +7,7 @@ import {
   CircleHelp,
   CalendarDays,
   CheckSquare,
+  MessageCircle,
   Flame,
   Settings,
   LogOut,
@@ -216,6 +217,7 @@ function AppLayout() {
               <MenuItem darkMode={darkMode} to="/quiz" icon={<CircleHelp size={20} />} label="Quiz" />
               <MenuItem darkMode={darkMode} to="/planning" icon={<CalendarDays size={20} />} label="Planning" />
               <MenuItem darkMode={darkMode} to="/todo" icon={<CheckSquare size={20} />} label="To-Do" />
+              <MenuItem darkMode={darkMode} to="/forum" icon={<MessageCircle size={20} />} label="Forum" />
             </nav>
           </div>
 

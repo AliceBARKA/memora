@@ -283,3 +283,32 @@ export function generateAiPlanning(data) {
     "Erreur génération planning IA"
   );
 }
+/* ---------------- FORUM ---------------- */
+
+export function getForumPosts() {
+  return apiFetch("/forum/", {}, "Erreur chargement forum");
+}
+
+export function createForumPost(post) {
+  return apiFetch(
+    "/forum/",
+    jsonOptions("POST", post),
+    "Erreur création publication"
+  );
+}
+
+export function getForumComments(postId) {
+  return apiFetch(
+    `/forum/${postId}/comments/`,
+    {},
+    "Erreur chargement commentaires"
+  );
+}
+
+export function createForumComment(postId, comment) {
+  return apiFetch(
+    `/forum/${postId}/comments/`,
+    jsonOptions("POST", comment),
+    "Erreur création commentaire"
+  );
+}
