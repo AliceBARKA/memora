@@ -32,11 +32,7 @@ if not SECRET_KEY:
         raise ImproperConfigured("DJANGO_SECRET_KEY must be set when DJANGO_DEBUG is false")
     SECRET_KEY = secrets.token_urlsafe(50)
 
-ALLOWED_HOSTS = [
-    host.strip()
-    for host in os.getenv("DJANGO_ALLOWED_HOSTS", "127.0.0.1,localhost").split(",")
-    if host.strip()
-]
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
@@ -67,7 +63,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "corsheaders.middleware.CorsMiddleware",
-
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -202,3 +198,20 @@ if not DEBUG:
     SECURE_HSTS_PRELOAD = True
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
+
+CORS_ALLOWED_ORIGINS = [
+    "https://alicebarka.github.io",
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://alicebarka.github.io",
+]
+
+STATIC_URL = "/static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+STORAGES = {
+    "staticfiles": {
+        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+    },
+}
