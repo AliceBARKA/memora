@@ -1,7 +1,11 @@
-export const API_ORIGIN = (import.meta.env.VITE_API_ORIGIN || "http://127.0.0.1:8000").replace(
-  /\/$/,
-  ""
-);
+const DEFAULT_API_ORIGIN = window.location.hostname.includes("github.io")
+  ? "https://memora-backend-fqtz.onrender.com"
+  : "http://127.0.0.1:8000";
+
+export const API_ORIGIN = (
+  import.meta.env.VITE_API_ORIGIN || DEFAULT_API_ORIGIN
+).replace(/\/$/, "");
+
 const API_URL = `${API_ORIGIN}/api`;
 
 function getAuthHeaders() {
