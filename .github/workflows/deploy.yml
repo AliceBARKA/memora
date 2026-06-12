@@ -34,6 +34,8 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+        env :
+          VITE_BACKEND_URL: https://memora-backend-fqtz.onrender.com
 
       - name: Add 404 page
         run: cp frontend/dist/index.html frontend/dist/404.html
