@@ -176,7 +176,7 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "true").lower() in {"1", "true", "yes"}
-
+EMAIL_TIMEOUT = int(os.getenv("EMAIL_TIMEOUT", "20"))
 EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD")
 EMAIL_BACKEND = os.getenv("EMAIL_BACKEND")
