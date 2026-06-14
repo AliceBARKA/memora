@@ -16,7 +16,7 @@ from .serializers import (
 
 from courses.models import Deck
 from todos.models import ToDo
-from ai_service.groq_service import generate_revision_plan_with_groq
+from ai_service.planning import generate_revision_plan_with_groq
 
 logger = logging.getLogger(__name__)
 

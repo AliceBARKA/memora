@@ -608,7 +608,7 @@ function PdfGenerator({ onClick, count, setCount, difficulty, setDifficulty, foc
       <section className="rounded-[28px] bg-white border border-slate-100 p-5 mb-5 grid md:grid-cols-2 gap-4">
         <label className="text-sm font-bold text-slate-500">
           Nombre de cartes
-          <input type="number" min="5" max="40" value={count} onChange={(e) => setCount(Math.min(40, Math.max(5, Number(e.target.value) || 5)))} className="mt-2 w-full h-11 rounded-2xl border border-slate-200 px-4" />
+          <input type="number" min="5" max="40" value={count} onChange={(e) => setCount(e.target.value === "" ? "" : Number(e.target.value))} onBlur={() => setCount(Math.min(40, Math.max(5, Number(count) || 10)))} className="mt-2 w-full h-11 rounded-2xl border border-slate-200 px-4" />
         </label>
         <label className="text-sm font-bold text-slate-500">
           Difficulté

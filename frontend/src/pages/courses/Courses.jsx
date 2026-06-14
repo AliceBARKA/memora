@@ -731,7 +731,7 @@ function CourseDrawer({ course, getSubject, onClose, onRename, onDelete, onGener
     <div className="grid grid-cols-2 gap-3">
       <label className="text-xs font-bold text-slate-500">
         Nombre
-        <input type="number" min="5" max="40" value={flashcardCount} onChange={(e) => setFlashcardCount(Math.min(40, Math.max(5, Number(e.target.value) || 5)))} className="mt-1 w-full h-10 rounded-xl border border-slate-200 px-3 bg-white" />
+        <input type="number" min="5" max="40" value={flashcardCount} onChange={(e) => setFlashcardCount(e.target.value === "" ? "" : Number(e.target.value))} onBlur={() => setFlashcardCount(Math.min(40, Math.max(5, Number(flashcardCount) || 10)))} className="mt-1 w-full h-10 rounded-xl border border-slate-200 px-3 bg-white" />
       </label>
       <label className="text-xs font-bold text-slate-500">
         Difficulté

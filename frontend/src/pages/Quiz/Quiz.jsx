@@ -431,7 +431,10 @@ function QuizOptions({ count, setCount, difficulty, setDifficulty, instructions,
                         max="30"
                         value={count}
                         onChange={(event) => setCount(
-                            Math.min(30, Math.max(5, Number(event.target.value) || 5))
+                            event.target.value === "" ? "" : Number(event.target.value)
+                        )}
+                        onBlur={() => setCount(
+                            Math.min(30, Math.max(5, Number(count) || 10))
                         )}
                         className="mt-1 w-full h-9 rounded-xl border border-slate-200 px-2"
                     />

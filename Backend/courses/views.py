@@ -24,14 +24,12 @@ from .serializers import (
 )
 
 from ai_service.pdf_extractor import extract_text_from_pdf
-from ai_service.pipeline import generate_flashcards_pipeline
-
-from ai_service.groq_service import (
-    generate_summary_with_groq,
-    generate_quiz_with_groq,
-    generate_personal_quiz_with_groq,
-    ask_pdf_with_groq,
-)
+from ai_service.pipeline import build_flashcard_fallbacks, generate_flashcards_pipeline
+from ai_service.pdf_chat import ask_pdf_with_groq
+from ai_service.quiz import generate_personal_quiz_with_groq, generate_quiz_with_groq
+from ai_service.similarity import contains_similar_choice_set, contains_similar_text
+from ai_service.summary import generate_summary_with_groq
+from ai_service.text_cleaning import canonical_text
 
 MAX_PDF_SIZE = 20 * 1024 * 1024
 logger = logging.getLogger(__name__)
@@ -72,10 +70,12 @@ def parse_generation_options(request, count_key, default_count, minimum, maximum
 
 def generate_complete_set(generator, source, count, max_attempts=None, **options):
     generated = []
-    seen_questions = set()
+    seen_questions = []
+    seen_choice_sets = []
     if max_attempts is None:
         max_attempts = math.ceil(count / GENERATION_BATCH_SIZE) + 3
 
+    no_progress_attempts = 0
     for _ in range(max_attempts):
         remaining = count - len(generated)
         if remaining <= 0:
@@ -90,59 +90,94 @@ def generate_complete_set(generator, source, count, max_attempts=None, **options
                 f"{base_instructions} Évite absolument ces questions déjà générées : "
                 f"{previous_questions}"
             ).strip()
-        batch = generator(
-            source,
-            count=min(remaining, GENERATION_BATCH_SIZE),
-            **attempt_options,
-        )
+        try:
+            batch = generator(
+                source,
+                count=min(remaining, GENERATION_BATCH_SIZE),
+                **attempt_options,
+            )
+        except Exception:
+            logger.exception("AI generation attempt failed")
+            continue
+        before_count = len(generated)
         for item in batch or []:
             if not isinstance(item, dict):
                 continue
             question = (item.get("question") or "").strip()
-            question_key = question.lower()
-            if question_key and question_key not in seen_questions:
-                seen_questions.add(question_key)
-                generated.append(item)
+            if not question or contains_similar_text(question, seen_questions):
+                continue
+            choices = item.get("choices")
+            if isinstance(choices, list):
+                if contains_similar_choice_set(choices, seen_choice_sets):
+                    continue
+                seen_choice_sets.append(choices)
+            seen_questions.append(question)
+            generated.append(item)
+        if len(generated) == before_count:
+            no_progress_attempts += 1
+            if no_progress_attempts >= 2:
+                break
+        else:
+            no_progress_attempts = 0
 
     return generated[:count]
 
 
 def build_quiz_fallbacks(flashcards, existing_questions, count):
-    used_questions = {
-        (item.get("question") or "").strip().lower()
+    used_questions = [
+        (item.get("question") or "").strip()
         for item in existing_questions
         if isinstance(item, dict)
-    }
+    ]
     answers = []
     for card in flashcards:
         answer = (card.get("answer") or "").strip()
-        if answer and answer not in answers:
+        if answer and not contains_similar_text(answer, answers, threshold=0.8):
             answers.append(answer)
 
     if len(answers) < 4:
         return []
 
     fallbacks = []
+    seen_choice_sets = [
+        item.get("choices", [])
+        for item in existing_questions
+        if isinstance(item, dict) and isinstance(item.get("choices"), list)
+    ]
     for index, card in enumerate(flashcards):
+        if len(existing_questions) + len(fallbacks) >= count:
+            break
         question = (card.get("question") or "").strip()
         correct_answer = (card.get("answer") or "").strip()
-        if not question or not correct_answer or question.lower() in used_questions:
+        if (
+            not question
+            or not correct_answer
+            or contains_similar_text(question, used_questions)
+        ):
             continue
 
-        distractors = [answer for answer in answers if answer != correct_answer][:3]
-        if len(distractors) < 3:
+        other_answers = [
+            answer for answer in answers
+            if not contains_similar_text(answer, [correct_answer], threshold=0.8)
+        ]
+        distractors = [
+            other_answers[(index + offset) % len(other_answers)]
+            for offset in range(3)
+        ]
+        if len({canonical_text(choice) for choice in distractors}) != 3:
             continue
-        choices = distractors.copy()
+        choices = distractors[:]
         choices.insert(index % 4, correct_answer)
+        if contains_similar_choice_set(choices, seen_choice_sets):
+            continue
         fallbacks.append({
             "question": question,
             "choices": choices,
             "correct_answer": correct_answer,
             "explanation": correct_answer,
         })
-        used_questions.add(question.lower())
-        if len(existing_questions) + len(fallbacks) >= count:
-            break
+        used_questions.append(question)
+        seen_choice_sets.append(choices)
 
     return fallbacks
 
@@ -250,19 +285,19 @@ def generate_flashcards_from_course(request, course_id):
             difficulty=options["difficulty"],
             focus=options["instructions"],
         )
-    except Exception as e:
+    except Exception:
         logger.exception("Flashcard generation failed for course %s", course.id)
-        return Response({
-            "error": "Erreur pendant la génération des flashcards",
-        }, status=500)
+        generated_cards = []
 
-    if len(generated_cards) != options["count"]:
-        return Response({
-            "error": (
-                f"L'IA a généré {len(generated_cards)} flashcard(s) sur "
-                f"{options['count']}. Réessaie pour obtenir le nombre demandé."
+    if len(generated_cards) < options["count"]:
+        generated_cards.extend(
+            build_flashcard_fallbacks(
+                text,
+                generated_cards,
+                options["count"],
+                options["difficulty"],
             )
-        }, status=502)
+        )
 
     with transaction.atomic():
         deck, created = Deck.objects.get_or_create(
@@ -475,19 +510,9 @@ def generate_personal_quiz(request):
             difficulty=options["difficulty"],
             instructions=options["instructions"],
         )
-    except Exception as e:
+    except Exception:
         logger.exception("Personal quiz generation failed")
-        return Response({
-            "error": "Erreur pendant la génération du quiz",
-        }, status=500)
-
-    if len(generated_questions) != options["count"]:
-        return Response({
-            "error": (
-                f"L'IA a généré {len(generated_questions)} question(s) sur "
-                f"{options['count']}. Réessaie pour obtenir le nombre demandé."
-            )
-        }, status=502)
+        generated_questions = []
 
     with transaction.atomic():
         quiz = Quiz.objects.create(
@@ -561,15 +586,12 @@ def generate_quiz_from_deck(request, deck_id):
             generate_quiz_with_groq,
             flashcards_data,
             count=options["count"],
-            max_attempts=2,
             difficulty=options["difficulty"],
             instructions=options["instructions"],
         )
-    except Exception as e:
+    except Exception:
         logger.exception("Quiz generation failed for deck %s", deck.id)
-        return Response({
-            "error": "Erreur pendant la génération du quiz",
-        }, status=500)
+        generated_questions = []
 
     if len(generated_questions) < options["count"]:
         generated_questions.extend(
@@ -579,15 +601,6 @@ def generate_quiz_from_deck(request, deck_id):
                 options["count"],
             )
         )
-
-    if len(generated_questions) != options["count"]:
-        return Response({
-            "error": (
-                f"L'IA a généré {len(generated_questions)} question(s) sur "
-                f"{options['count']}. Ce deck ne contient pas assez de notions distinctes "
-                "pour compléter le quiz."
-            )
-        }, status=502)
 
     with transaction.atomic():
         quiz = Quiz.objects.create(

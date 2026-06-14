@@ -46,9 +46,9 @@ class CoursesAPITests(TestCase):
         return [
             {
                 "question": f"Question {index}",
-                "choices": ["A", "B", "C", "D"],
-                "correct_answer": "A",
-                "explanation": "Because A",
+                "choices": [f"A {index}", f"B {index}", f"C {index}", f"D {index}"],
+                "correct_answer": f"A {index}",
+                "explanation": f"Because A {index}",
             }
             for index in range(start, start + count)
         ]
@@ -268,7 +268,7 @@ class CoursesAPITests(TestCase):
 
     @patch("courses.views.extract_text_from_pdf", return_value="Cours utile")
     @patch("courses.views.generate_flashcards_pipeline", return_value=[])
-    def test_incomplete_flashcard_generation_preserves_existing_deck(self, _generate, _extract):
+    def test_incomplete_flashcard_generation_saves_fallback_cards(self, _generate, _extract):
         deck = self.create_deck()
         Flashcard.objects.create(deck=deck, question="Existing", answer="Answer")
 
@@ -278,8 +278,9 @@ class CoursesAPITests(TestCase):
             format="json",
         )
 
-        self.assertEqual(response.status_code, 502)
-        self.assertEqual(list(deck.flashcards.values_list("question", flat=True)), ["Existing"])
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(deck.flashcards.count(), 1)
+        self.assertNotIn("Existing", deck.flashcards.values_list("question", flat=True))
 
     @patch("courses.views.generate_personal_quiz_with_groq")
     def test_personal_quiz_retries_until_requested_count(self, generate):
@@ -339,7 +340,7 @@ class CoursesAPITests(TestCase):
         )
 
     @patch("courses.views.generate_quiz_with_groq")
-    def test_incomplete_deck_quiz_is_not_saved(self, generate):
+    def test_incomplete_deck_quiz_is_saved_without_repeated_padding(self, generate):
         deck = self.create_deck()
         Flashcard.objects.create(deck=deck, question="Existing", answer="Answer")
         generate.return_value = self.quiz_questions(0, 1)
@@ -350,9 +351,10 @@ class CoursesAPITests(TestCase):
             format="json",
         )
 
-        self.assertEqual(response.status_code, 502)
-        self.assertEqual(generate.call_count, 2)
-        self.assertEqual(Quiz.objects.count(), 0)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(generate.call_count, 3)
+        self.assertEqual(len(response.data["quiz_questions"]), 1)
+        self.assertEqual(Quiz.objects.count(), 1)
 
     @patch("courses.views.generate_quiz_with_groq", return_value=[])
     def test_deck_quiz_fills_missing_ai_questions_from_flashcards(self, generate):
@@ -375,6 +377,20 @@ class CoursesAPITests(TestCase):
         self.assertEqual(generate.call_count, 2)
         saved_questions = QuizQuestion.objects.filter(quiz_id=response.data["id"])
         self.assertTrue(all(len(question.choices) == 4 for question in saved_questions))
+
+    @patch("courses.views.generate_quiz_with_groq", return_value=[])
+    def test_deck_quiz_does_not_pad_large_request_with_repeated_questions(self, _generate):
+        deck = self.create_deck()
+        Flashcard.objects.create(deck=deck, question="Question", answer="Answer")
+
+        response = self.client.post(
+            f"/api/courses/decks/{deck.id}/generate-quiz/",
+            {"count": 30},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(len(response.data["quiz_questions"]), 0)
 
     def test_generation_rejects_invalid_counts(self):
         course = self.create_course()
@@ -419,12 +435,13 @@ class CoursesAPITests(TestCase):
         self.assertEqual(topic_response.status_code, 400)
 
     @patch("courses.views.generate_personal_quiz_with_groq", return_value=[])
-    def test_personal_quiz_is_not_created_without_questions(self, _generate):
+    def test_personal_quiz_is_saved_without_fabricated_fallback_questions(self, _generate):
         response = self.client.post(
             "/api/courses/generate-personal-quiz/",
             {"topic": "Empty"},
             format="json",
         )
 
-        self.assertEqual(response.status_code, 502)
-        self.assertEqual(Quiz.objects.count(), 0)
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(len(response.data["quiz_questions"]), 0)
+        self.assertEqual(Quiz.objects.count(), 1)
