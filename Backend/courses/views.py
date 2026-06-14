@@ -15,12 +15,14 @@ from .models import (
     Quiz,
     QuizQuestion,
     QuizAttempt,
+    Folder
 )
 
 from .serializers import (
     CoursePDFSerializer,
     DeckSerializer,
     QuizSerializer,
+    FolderSerializer
 )
 
 from ai_service.pdf_extractor import extract_text_from_pdf
@@ -30,6 +32,8 @@ from ai_service.quiz import generate_personal_quiz_with_groq, generate_quiz_with
 from ai_service.similarity import contains_similar_choice_set, contains_similar_text
 from ai_service.summary import generate_summary_with_groq
 from ai_service.text_cleaning import canonical_text
+from ai_service.chunking import select_relevant_chunks
+
 
 MAX_PDF_SIZE = 20 * 1024 * 1024
 logger = logging.getLogger(__name__)
@@ -763,3 +767,109 @@ def quiz_statistics(request, quiz_id):
         "average_percentage": round(sum(percentages) / len(percentages), 2),
         "last_percentage": attempts.order_by("-completed_at").first().percentage,
     })
+
+
+@api_view(["POST"])
+def global_chat(request):
+    question = request.data.get("question", "")
+    folder_id = request.data.get("folder_id")
+    course_id = request.data.get("course_id")
+
+    if not question.strip():
+        return Response({"error": "Question vide"}, status=400)
+
+    courses = CoursePDF.objects.filter(user=request.user)
+
+    if course_id:
+        courses = courses.filter(id=course_id)
+
+    if folder_id:
+        courses = courses.filter(folder_id=folder_id)
+
+    if not courses.exists():
+        return Response({"error": "Aucun cours trouvé"}, status=404)
+
+    context_parts = []
+    sources = []
+
+    for course in courses[:10]:
+        text = extract_text_from_pdf(course.file.path)
+
+        chunks = select_relevant_chunks(
+            text,
+            question,
+            max_chunks=2,
+            max_chars=2500,
+        )
+
+        if not chunks:
+            continue
+
+        context_parts.append(
+            f"\n\n--- COURS : {course.title} ---\n" + "\n\n".join(chunks)
+        )
+
+        sources.append(course.title)
+
+    if not context_parts:
+        return Response({
+            "question": question,
+            "answer": "Je n’ai pas trouvé cette information dans les cours sélectionnés.",
+            "sources": [],
+        })
+
+    context = "\n\n".join(context_parts)
+    context = context[:4500]
+
+    answer = ask_pdf_with_groq(context, question)
+
+    return Response({
+        "question": question,
+        "answer": answer,
+        "sources": sources,
+    })
+
+@api_view(["GET", "POST"])
+def folders_list_create(request):
+    if request.method == "GET":
+        folders = Folder.objects.filter(user=request.user).order_by("-created_at")
+        serializer = FolderSerializer(folders, many=True)
+        return Response(serializer.data)
+
+    name = request.data.get("name", "").strip()
+
+    if not name:
+        return Response({"error": "Nom du dossier vide"}, status=400)
+
+    folder = Folder.objects.create(
+        name=name,
+        user=request.user
+    )
+
+    serializer = FolderSerializer(folder)
+    return Response(serializer.data, status=201)
+
+
+@api_view(["PATCH"])
+def move_course_to_folder(request, course_id):
+    folder_id = request.data.get("folder_id")
+
+    try:
+        course = CoursePDF.objects.get(id=course_id, user=request.user)
+    except CoursePDF.DoesNotExist:
+        return Response({"error": "Cours introuvable"}, status=404)
+
+    if folder_id in [None, "", "null"]:
+        course.folder = None
+        course.save(update_fields=["folder"])
+        return Response(CoursePDFSerializer(course).data)
+
+    try:
+        folder = Folder.objects.get(id=folder_id, user=request.user)
+    except Folder.DoesNotExist:
+        return Response({"error": "Dossier introuvable"}, status=404)
+
+    course.folder = folder
+    course.save(update_fields=["folder"])
+
+    return Response(CoursePDFSerializer(course).data)

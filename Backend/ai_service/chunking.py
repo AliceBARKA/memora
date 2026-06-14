@@ -102,5 +102,5 @@ def select_relevant_chunks(text, query, max_chunks=4, max_chars=7000):
 
     selected = sorted(scored, reverse=True)[:max_chunks]
     if selected[0][0] == 0:
-        return evenly_select(chunks, max_chunks)
+        return []
     return [item[3] for item in sorted(selected, key=lambda item: item[2])]
