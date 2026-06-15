@@ -19,8 +19,6 @@ import {
   MoreHorizontal,
 Check,
 
-import { API_ORIGIN } from "../../services/api";
-
 } from "lucide-react";
 import { MemiGuide } from "../../components/AnimatedMemi";
 
@@ -245,7 +243,7 @@ const startNewGlobalChat = () => {
   try {
     const token = localStorage.getItem("token");
 
-    const res = await fetch(`${API_ORIGIN}/api/courses/global-chat/`, {
+    const res = await fetch("http://127.0.0.1:8000/api/courses/global-chat/", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
