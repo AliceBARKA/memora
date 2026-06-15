@@ -347,13 +347,25 @@ class CoursesAPITests(TestCase):
 
         response = self.client.post(
             f"/api/courses/decks/{deck.id}/generate-quiz/",
-            {"count": 5},
+            {"count": 1},
             format="json",
         )
 
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(generate.call_count, 3)
+        generate.assert_called_once_with(
+            [
+                {
+                    "question": "Existing",
+                    "answer": "Answer",
+                    "difficulty": "medium",
+                }
+            ],
+            count=1,
+            difficulty="all",
+            instructions="",
+        )
         self.assertEqual(len(response.data["quiz_questions"]), 1)
+        self.assertEqual(response.data["effective_count"], 1)
         self.assertEqual(Quiz.objects.count(), 1)
 
     @patch("courses.views.generate_quiz_with_groq", return_value=[])
@@ -374,14 +386,20 @@ class CoursesAPITests(TestCase):
 
         self.assertEqual(response.status_code, 201)
         self.assertEqual(len(response.data["quiz_questions"]), 5)
-        self.assertEqual(generate.call_count, 2)
+        self.assertEqual(response.data["effective_count"], 5)
+        self.assertEqual(generate.call_count, 1)
         saved_questions = QuizQuestion.objects.filter(quiz_id=response.data["id"])
         self.assertTrue(all(len(question.choices) == 4 for question in saved_questions))
 
     @patch("courses.views.generate_quiz_with_groq", return_value=[])
-    def test_deck_quiz_does_not_pad_large_request_with_repeated_questions(self, _generate):
+    def test_deck_quiz_rejects_request_above_flashcard_count(self, generate):
         deck = self.create_deck()
-        Flashcard.objects.create(deck=deck, question="Question", answer="Answer")
+        for index in range(5):
+            Flashcard.objects.create(
+                deck=deck,
+                question=f"Flashcard question {index}",
+                answer=f"Flashcard answer {index}",
+            )
 
         response = self.client.post(
             f"/api/courses/decks/{deck.id}/generate-quiz/",
@@ -389,8 +407,49 @@ class CoursesAPITests(TestCase):
             format="json",
         )
 
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("5", response.data["count"][0])
+        generate.assert_not_called()
+
+    @patch("courses.views.generate_quiz_with_groq", return_value=[])
+    def test_deck_quiz_allows_count_above_thirty_when_deck_has_enough_cards(self, generate):
+        deck = self.create_deck()
+        for index in range(37):
+            Flashcard.objects.create(
+                deck=deck,
+                question=f"Flashcard question {index}",
+                answer=f"Flashcard answer {index}",
+            )
+
+        response = self.client.post(
+            f"/api/courses/decks/{deck.id}/generate-quiz/",
+            {"count": 37},
+            format="json",
+        )
+
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(len(response.data["quiz_questions"]), 0)
+        self.assertEqual(response.data["effective_count"], 37)
+        self.assertEqual(generate.call_args.kwargs["count"], 37)
+
+    @patch("courses.views.generate_quiz_with_groq", return_value=[])
+    def test_deck_quiz_rejects_count_above_absolute_maximum(self, generate):
+        deck = self.create_deck()
+        for index in range(60):
+            Flashcard.objects.create(
+                deck=deck,
+                question=f"Flashcard question {index}",
+                answer=f"Flashcard answer {index}",
+            )
+
+        response = self.client.post(
+            f"/api/courses/decks/{deck.id}/generate-quiz/",
+            {"count": 41},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("40", response.data["count"][0])
+        generate.assert_not_called()
 
     def test_generation_rejects_invalid_counts(self):
         course = self.create_course()

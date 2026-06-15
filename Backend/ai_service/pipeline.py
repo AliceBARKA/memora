@@ -1,4 +1,5 @@
 import logging
+import math
 
 from groq import RateLimitError
 
@@ -88,8 +89,9 @@ def generate_flashcards_pipeline(text, count=10, difficulty="all", focus=""):
     primary_facts = selected_facts[:primary_fact_count]
     remaining_facts = selected_facts[primary_fact_count:]
 
+    requested_count = min(count + 8, math.ceil(count * 1.3))
     try:
-        cards = _generate_cards(primary_facts, count, difficulty, focus)
+        cards = _generate_cards(primary_facts, requested_count, difficulty, focus)
     except RateLimitError:
         logger.warning("Groq rate limit reached while generating flashcards.")
         return []
@@ -107,7 +109,7 @@ def generate_flashcards_pipeline(text, count=10, difficulty="all", focus=""):
     try:
         repair_cards = _generate_cards(
             repair_facts,
-            missing_count,
+            missing_count + 4,
             difficulty,
             focus,
             previous_questions=previous_questions,

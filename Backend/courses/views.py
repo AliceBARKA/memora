@@ -19,7 +19,9 @@ from .models import (
 )
 
 from .serializers import (
+    ABSOLUTE_MAX_QUIZ_COUNT,
     CoursePDFSerializer,
+    DeckQuizGenerationSerializer,
     DeckSerializer,
     QuizSerializer,
     FolderSerializer
@@ -560,9 +562,6 @@ def delete_quiz(request,quiz_id):
 
 @api_view(["POST"])
 def generate_quiz_from_deck(request, deck_id):
-    options, error = parse_generation_options(request, "count", 10, 5, 30)
-    if error:
-        return error
     try:
         deck = Deck.objects.get(
     id=deck_id,
@@ -576,6 +575,15 @@ def generate_quiz_from_deck(request, deck_id):
     if not flashcards.exists():
         return Response({"error": "Aucune flashcard trouvée pour ce deck"}, status=400)
 
+    flashcard_count = flashcards.count()
+    options_serializer = DeckQuizGenerationSerializer(
+        data=request.data,
+        context={"flashcard_count": flashcard_count},
+    )
+    if not options_serializer.is_valid():
+        return Response(options_serializer.errors, status=400)
+    options = options_serializer.validated_data
+
     flashcards_data = [
         {
             "question": card.question,
@@ -584,12 +592,16 @@ def generate_quiz_from_deck(request, deck_id):
         }
         for card in flashcards
     ]
+    effective_count = min(
+        options["count"],
+        flashcard_count,
+        ABSOLUTE_MAX_QUIZ_COUNT,
+    )
 
     try:
-        generated_questions = generate_complete_set(
-            generate_quiz_with_groq,
+        generated_questions = generate_quiz_with_groq(
             flashcards_data,
-            count=options["count"],
+            count=effective_count,
             difficulty=options["difficulty"],
             instructions=options["instructions"],
         )
@@ -597,12 +609,12 @@ def generate_quiz_from_deck(request, deck_id):
         logger.exception("Quiz generation failed for deck %s", deck.id)
         generated_questions = []
 
-    if len(generated_questions) < options["count"]:
+    if len(generated_questions) < effective_count:
         generated_questions.extend(
             build_quiz_fallbacks(
                 flashcards_data,
                 generated_questions,
-                options["count"],
+                effective_count,
             )
         )
 
@@ -625,7 +637,9 @@ def generate_quiz_from_deck(request, deck_id):
 
     serializer = QuizSerializer(quiz)
 
-    return Response(serializer.data, status=201)
+    response_data = dict(serializer.data)
+    response_data["effective_count"] = effective_count
+    return Response(response_data, status=201)
 
 
 @api_view(["POST"])

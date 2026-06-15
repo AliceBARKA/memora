@@ -99,7 +99,7 @@ class JsonExtractionTests(SimpleTestCase):
                 "explanation": "Choix répétés.",
             },
             {
-                "question": "Quelle propriété caractérise UDP ?",
+                "question": "Quelle propriété importante caractérise le protocole UDP ?",
                 "choices": ["Rapidité", "Accusé de réception", "Connexion persistante", "Retransmission"],
                 "correct_answer": "Rapidité",
                 "explanation": "UDP privilégie la rapidité.",
@@ -116,7 +116,7 @@ class JsonExtractionTests(SimpleTestCase):
             [question["question"] for question in questions],
             [
                 "Quel est le rôle principal du protocole TCP ?",
-                "Quelle propriété caractérise UDP ?",
+                "Quelle propriété importante caractérise le protocole UDP ?",
             ],
         )
 
@@ -134,7 +134,73 @@ class JsonExtractionTests(SimpleTestCase):
         prompt = call_groq.call_args.args[0]
         self.assertEqual(prompt.count('"question": "Question répétée"'), 1)
         self.assertNotIn("Question répétée reformulée", prompt)
-        self.assertIn("jusqu'à 5 questions", prompt)
+        self.assertIn("Génère EXACTEMENT 2 questions", prompt)
+
+    @patch("ai_service.quiz.call_groq_json")
+    def test_quiz_generation_uses_bounded_balanced_batches(self, call_groq):
+        flashcards = [
+            {
+                "question": f"Question source distincte numéro {index}",
+                "answer": f"Réponse source distincte numéro {index}",
+                "difficulty": "medium",
+            }
+            for index in range(50)
+        ]
+
+        def quiz_question(index):
+            token = f"{index * 7919:x}"
+            return {
+                "question": f"Comment fonctionne précisément le concept distinct {token} étudié ici ?",
+                "choices": [
+                    f"Réponse correcte {token}",
+                    f"Erreur alpha {token}",
+                    f"Erreur beta {token}",
+                    f"Erreur gamma {token}",
+                ],
+                "correct_answer": f"Réponse correcte {token}",
+                "explanation": f"Explication {token}",
+            }
+
+        next_question = 0
+
+        def response(*_args, **_kwargs):
+            nonlocal next_question
+            batch = [quiz_question(index) for index in range(next_question, next_question + 10)]
+            next_question += 10
+            return json.dumps({"items": batch})
+
+        call_groq.side_effect = response
+
+        questions = generate_quiz_with_groq(flashcards, count=25)
+
+        self.assertEqual(len(questions), 25)
+        self.assertEqual(call_groq.call_count, 3)
+        prompts = [call.args[0] for call in call_groq.call_args_list]
+        self.assertTrue(all(prompt.count('"question": "Question source') == 20 for prompt in prompts))
+        self.assertIn("Génère EXACTEMENT 10 questions", prompts[0])
+        self.assertIn("Génère EXACTEMENT 5 questions", prompts[2])
+        self.assertNotEqual(prompts[0], prompts[1])
+        self.assertIn(questions[0]["question"], prompts[1])
+
+    @patch("ai_service.quiz.call_groq_json", return_value='{"items": []}')
+    def test_quiz_generation_stops_after_bounded_attempts(self, call_groq):
+        flashcards = [
+            {
+                "question": f"Question source distincte numéro {index}",
+                "answer": f"Réponse source distincte numéro {index}",
+                "difficulty": "medium",
+            }
+            for index in range(50)
+        ]
+
+        questions = generate_quiz_with_groq(flashcards, count=25)
+
+        self.assertEqual(questions, [])
+        self.assertEqual(call_groq.call_count, 5)
+        self.assertTrue(all(
+            "Génère EXACTEMENT 10 questions" in call.args[0]
+            for call in call_groq.call_args_list
+        ))
 
 
 class ChunkingTests(SimpleTestCase):
@@ -236,7 +302,7 @@ class FlashcardPipelineTests(SimpleTestCase):
             ["Fait central du début", "Autre fait du début"],
             ["Fait central de la fin", "Autre fait de la fin"],
         ]
-        generate.return_value = self.cards(0, 3)
+        generate.return_value = self.cards(0, 4)
 
         cards = generate_flashcards_pipeline(
             "Cours complet",
@@ -252,6 +318,7 @@ class FlashcardPipelineTests(SimpleTestCase):
             for call in extract_facts.call_args_list
         ))
         generate.assert_called_once()
+        self.assertEqual(generate.call_args.kwargs["count"], 4)
         self.assertIn("Fait central du début", generate.call_args.args[0])
         self.assertIn("Fait central de la fin", generate.call_args.args[0])
 
@@ -273,8 +340,8 @@ class FlashcardPipelineTests(SimpleTestCase):
 
         self.assertEqual(len(cards), 3)
         self.assertEqual(generate.call_count, 2)
-        self.assertEqual(generate.call_args_list[0].kwargs["count"], 3)
-        self.assertEqual(generate.call_args_list[1].kwargs["count"], 1)
+        self.assertEqual(generate.call_args_list[0].kwargs["count"], 4)
+        self.assertEqual(generate.call_args_list[1].kwargs["count"], 5)
         self.assertEqual(
             generate.call_args_list[1].kwargs["previous_questions"],
             [card["question"] for card in cards[:2]],
