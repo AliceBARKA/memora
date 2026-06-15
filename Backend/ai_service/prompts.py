@@ -264,13 +264,15 @@ Tu es un assistant pédagogique spécialisé dans l'organisation des révisions.
 Propose un planning réaliste utilisant uniquement les disponibilités fournies.
 
 Réponds uniquement avec:
-{{"sessions": [{{"day": "Lundi", "start_time": "18:00", "end_time": "19:00", "objective": "Réviser les notions principales", "session_type": "flashcards", "todo_title": "Réviser les cartes importantes", "todo_description": "Revoir les cartes difficiles", "todo_priority": "high"}}]}}
+{{"sessions": [{{"day": "Lundi", "start_time": "18:00", "end_time": "19:00", "objective": "Réviser les bases de {deck_title}", "session_type": "flashcards", "todo_title": "Pratiquer les questions types de {deck_title}", "todo_description": "Revoir les flashcards difficiles de {deck_title}", "todo_priority": "high"}}]}}
 
 Contraintes:
 - maximum 5 séances et aucune séance hors disponibilité
 - session_type: flashcards, summary, quiz ou review
 - todo_priority: low, medium ou high
 - réponds en français
+- objective, todo_title et todo_description doivent mentionner explicitement le deck "{deck_title}"
+- évite les titres génériques qui pourraient convenir à n'importe quel cours
 
 Deck: {deck_title}
 Date d'examen: {exam_date}

@@ -91,6 +91,37 @@ class CoursesAPITests(TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(CoursePDF.objects.get().user, self.user)
 
+    def test_manual_flashcard_creation_is_owner_scoped_and_validated(self):
+        deck = self.create_deck()
+        other_deck = self.create_deck(self.other_user)
+
+        created = self.client.post(
+            f"/api/courses/decks/{deck.id}/flashcards/",
+            {
+                "question": "  Quelle est la complexité ?  ",
+                "answer": "  O(n)  ",
+                "difficulty": "hard",
+            },
+            format="json",
+        )
+        empty = self.client.post(
+            f"/api/courses/decks/{deck.id}/flashcards/",
+            {"question": " ", "answer": "Réponse", "difficulty": "medium"},
+            format="json",
+        )
+        forbidden = self.client.post(
+            f"/api/courses/decks/{other_deck.id}/flashcards/",
+            {"question": "Question", "answer": "Réponse", "difficulty": "medium"},
+            format="json",
+        )
+
+        self.assertEqual(created.status_code, 201)
+        self.assertEqual(created.data["front"], "Quelle est la complexité ?")
+        self.assertEqual(created.data["back"], "O(n)")
+        self.assertEqual(empty.status_code, 400)
+        self.assertEqual(forbidden.status_code, 404)
+        self.assertEqual(deck.flashcards.count(), 1)
+
     def test_update_and_delete_course_are_owner_scoped(self):
         course = self.create_course()
         other_course = self.create_course(self.other_user, "Other")

@@ -11,7 +11,7 @@ from .parsing import extract_json_array, match_correct_answer
 from .pdf_chat import ask_pdf_with_groq
 from .pipeline import build_flashcard_fallbacks, generate_flashcards_pipeline
 from .planning import generate_revision_plan_with_groq
-from .prompts import build_flashcards_prompt
+from .prompts import build_flashcards_prompt, build_revision_plan_prompt
 from .quiz import generate_quiz_with_groq
 from .similarity import choice_sets_are_similar, has_duplicate_choices, texts_are_similar
 from .summary import generate_summary_with_groq
@@ -204,6 +204,22 @@ class JsonExtractionTests(SimpleTestCase):
 
 
 class ChunkingTests(SimpleTestCase):
+    def test_revision_plan_prompt_requires_deck_specific_titles(self):
+        prompt = build_revision_plan_prompt(
+            "Programmation Dynamique",
+            [],
+            [],
+            "2026-07-01",
+            "medium",
+        )
+
+        self.assertIn("Réviser les bases de Programmation Dynamique", prompt)
+        self.assertIn(
+            'objective, todo_title et todo_description doivent mentionner explicitement le deck '
+            '"Programmation Dynamique"',
+            prompt,
+        )
+
     def test_balanced_contexts_cover_beginning_middle_and_end_with_bounded_calls(self):
         text = " ".join(
             f"Section {index} contient une explication suffisamment longue."

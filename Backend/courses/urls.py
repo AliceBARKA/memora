@@ -4,6 +4,7 @@ from .views import (
     get_courses,
     download_course,
     get_decks,
+    create_deck_flashcard,
     upload_course,
     delete_course,
     generate_flashcards_from_course,
@@ -31,6 +32,11 @@ urlpatterns = [
     path("<int:course_id>/file/", download_course, name="download_course"),
 
     path("decks/", get_decks, name="get_decks"),
+    path(
+        "decks/<int:deck_id>/flashcards/",
+        create_deck_flashcard,
+        name="create_deck_flashcard",
+    ),
 
     path(
         "<int:course_id>/",

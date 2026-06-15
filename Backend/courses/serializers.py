@@ -68,6 +68,25 @@ class FlashcardSerializer(serializers.ModelSerializer):
         fields = ["id", "front", "back", "difficulty"]
 
 
+class ManualFlashcardSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Flashcard
+        fields = ["id", "question", "answer", "difficulty"]
+        read_only_fields = ["id"]
+
+    def validate_question(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("La question est obligatoire.")
+        return value
+
+    def validate_answer(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("La réponse est obligatoire.")
+        return value
+
+
 class DeckSerializer(serializers.ModelSerializer):
     cards = FlashcardSerializer(source="flashcards", many=True, read_only=True)
     subject = serializers.CharField(default="Depuis PDF")

@@ -149,6 +149,14 @@ export function getDecks() {
   return apiFetch("/courses/decks/", {}, "Erreur chargement flashcards");
 }
 
+export function createDeckFlashcard(deckId, data) {
+  return apiFetch(
+    `/courses/decks/${deckId}/flashcards/`,
+    jsonOptions("POST", data),
+    "Erreur création flashcard"
+  );
+}
+
 export function deleteDeck(id) {
   return apiFetch(
     `/courses/flashcards/delete/${id}/`,

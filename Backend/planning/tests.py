@@ -146,7 +146,11 @@ class PlanningAPITests(TestCase):
         session = RevisionSession.objects.get()
         self.assertEqual(session.revisionPlan.user, self.user)
         self.assertEqual(session.deck.user, self.user)
-        self.assertEqual(session.todos.get().user, self.user)
+        todo = session.todos.get()
+        self.assertEqual(todo.user, self.user)
+        self.assertIn("Network deck", session.title)
+        self.assertIn("Network deck", todo.title)
+        self.assertIn("Network deck", todo.description)
 
     @patch("planning.views.generate_revision_plan_with_groq")
     def test_ai_planning_rejects_foreign_deck(self, generate):

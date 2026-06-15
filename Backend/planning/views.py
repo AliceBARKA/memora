@@ -282,6 +282,13 @@ def generate_ai_revision_plan(request):
         }, status=400)
 
     created_sessions = []
+    deck_subject = deck.title.replace("Flashcards - ", "")
+
+    def deck_specific(value, fallback):
+        value = (value or "").strip()
+        if deck_subject.casefold() in value.casefold():
+            return value
+        return f"{value or fallback} - {deck_subject}"
 
     with transaction.atomic():
         revision_plan = RevisionPlan.objects.create(
@@ -294,6 +301,12 @@ def generate_ai_revision_plan(request):
         )
 
         for ai_session, session_date, start_time, end_time in valid_sessions:
+            objective = deck_specific(ai_session.get("objective"), "Réviser le cours")
+            todo_title = deck_specific(ai_session.get("todo_title"), "Réviser les flashcards")
+            todo_description = deck_specific(
+                ai_session.get("todo_description"),
+                "Revoir les notions à consolider",
+            )
             session = RevisionSession.objects.create(
                 revisionPlan=revision_plan,
                 deck=deck,
@@ -301,15 +314,15 @@ def generate_ai_revision_plan(request):
                 start_time=start_time,
                 end_time=end_time,
                 status="planned",
-                title=ai_session["objective"],
+                title=objective,
                 description=ai_session["session_type"],
                 location="Planning IA",
             )
 
             todo = ToDo.objects.create(
-                title=ai_session["todo_title"],
-                description=ai_session.get("todo_description", ""),
-                subject=deck.title.replace("Flashcards - ", ""),
+                title=todo_title,
+                description=todo_description,
+                subject=deck_subject,
                 priority=ai_session["todo_priority"],
                 due_date=session_date,
                 user=request.user,
@@ -323,12 +336,12 @@ def generate_ai_revision_plan(request):
                 "date": session_date,
                 "start_time": start_time,
                 "end_time": end_time,
-                "objective": ai_session["objective"],
+                "objective": objective,
                 "session_type": ai_session["session_type"],
                 "revisionPlan": revision_plan.id,
                 "deck": deck.id,
                 "status": "planned",
-                "title": ai_session["objective"],
+                "title": objective,
                 "description": ai_session["session_type"],
                 "location": "Planning IA",
                 "color": "#8B6CF6",

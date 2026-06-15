@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import flashcard from "/src/assets/flashcard.png";
 import memiImage from "/src/assets/mascot.png";
-import { deleteDeck, getDecks, uploadCoursePDF, generateFlashcardsFromCourse } from "../../services/api";
+import { createDeckFlashcard, deleteDeck, getDecks, uploadCoursePDF, generateFlashcardsFromCourse } from "../../services/api";
 import AnimatedMemi, { MemiGuide } from "../../components/AnimatedMemi";
 import { FlashcardGenerationResult } from "../../components/FlashcardGenerationResult";
 import { buildFlashcardGenerationResult } from "../../components/flashcardGenerationResult";
@@ -35,6 +35,12 @@ function Flashcards() {
   const [generationDifficulty, setGenerationDifficulty] = useState("all");
   const [generationFocus, setGenerationFocus] = useState("");
   const [generationResult, setGenerationResult] = useState(null);
+  const [showManualForm, setShowManualForm] = useState(false);
+  const [manualQuestion, setManualQuestion] = useState("");
+  const [manualAnswer, setManualAnswer] = useState("");
+  const [manualDifficulty, setManualDifficulty] = useState("medium");
+  const [manualError, setManualError] = useState("");
+  const [savingManualCard, setSavingManualCard] = useState(false);
 
   
 
@@ -79,6 +85,11 @@ function Flashcards() {
 
   const selectDeck = (id) => {
     setGenerationResult(null);
+    setShowManualForm(false);
+    setManualError("");
+    setManualQuestion("");
+    setManualAnswer("");
+    setManualDifficulty("medium");
     setDeckId(id);
     setIdx(0);
     setFlipped(false);
@@ -201,6 +212,32 @@ function Flashcards() {
     }));
     setFlipped(false);
     setTimeout(() => setIdx((i) => i + 1), 200);
+  };
+
+  const addManualFlashcard = async (event) => {
+    event.preventDefault();
+    if (!manualQuestion.trim() || !manualAnswer.trim()) {
+      setManualError("La question et la réponse sont obligatoires.");
+      return;
+    }
+    try {
+      setSavingManualCard(true);
+      setManualError("");
+      await createDeckFlashcard(deckId, {
+        question: manualQuestion.trim(),
+        answer: manualAnswer.trim(),
+        difficulty: manualDifficulty,
+      });
+      setDecks(await getDecks());
+      setManualQuestion("");
+      setManualAnswer("");
+      setManualDifficulty("medium");
+      setShowManualForm(false);
+    } catch (error) {
+      setManualError(error.message);
+    } finally {
+      setSavingManualCard(false);
+    }
   };
 
   return (
@@ -429,6 +466,17 @@ function Flashcards() {
           Mélanger
         </button>
 
+        <button
+          onClick={() => {
+            setManualError("");
+            setShowManualForm((current) => !current);
+          }}
+          className="h-10 px-4 rounded-2xl bg-[#8B6CF6] text-white hover:bg-[#7C3AED] transition flex items-center gap-2"
+        >
+          <Plus size={16} />
+          Ajouter une flashcard
+        </button>
+
         <span className="h-10 px-4 rounded-2xl bg-[#8B6CF6]/10 text-[#8B6CF6] flex items-center">
           {Math.min(idx + 1, total)} / {total}
         </span>
@@ -445,6 +493,29 @@ function Flashcards() {
       />
     </div>
   </div>
+
+  {showManualForm && (
+    <form onSubmit={addManualFlashcard} className="bg-white rounded-[28px] border border-[#8B6CF6]/20 p-5 mb-6 shadow-sm grid gap-4">
+      <div>
+        <p className="text-xs font-extrabold uppercase tracking-wider text-[#8B6CF6]">Nouvelle flashcard</p>
+        <h3 className="text-xl font-extrabold mt-1">Ajouter une carte à {deck.title}</h3>
+      </div>
+      <input value={manualQuestion} onChange={(event) => setManualQuestion(event.target.value)} placeholder="Question" className="h-11 rounded-2xl border border-slate-200 px-4 outline-none focus:ring-2 focus:ring-[#8B6CF6]/30" />
+      <textarea value={manualAnswer} onChange={(event) => setManualAnswer(event.target.value)} placeholder="Réponse" rows={3} className="rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:ring-2 focus:ring-[#8B6CF6]/30" />
+      <select value={manualDifficulty} onChange={(event) => setManualDifficulty(event.target.value)} className="h-11 rounded-2xl border border-slate-200 px-4">
+        <option value="easy">Facile</option>
+        <option value="medium">Moyenne</option>
+        <option value="hard">Difficile</option>
+      </select>
+      {manualError && <p className="text-sm font-bold text-red-500">{manualError}</p>}
+      <div className="flex gap-3">
+        <button type="submit" disabled={savingManualCard} className="h-11 px-5 rounded-2xl bg-[#8B6CF6] text-white font-bold disabled:opacity-50">
+          {savingManualCard ? "Ajout..." : "Ajouter la flashcard"}
+        </button>
+        <button type="button" onClick={() => setShowManualForm(false)} className="h-11 px-5 rounded-2xl bg-slate-100 text-slate-500 font-bold">Annuler</button>
+      </div>
+    </form>
+  )}
 
   {!finished ? (
     <>

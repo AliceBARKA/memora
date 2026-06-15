@@ -23,6 +23,8 @@ from .serializers import (
     CoursePDFSerializer,
     DeckQuizGenerationSerializer,
     DeckSerializer,
+    FlashcardSerializer,
+    ManualFlashcardSerializer,
     QuizSerializer,
     FolderSerializer
 )
@@ -259,6 +261,15 @@ def get_decks(request):
     )
     serializer = DeckSerializer(decks, many=True)
     return Response(serializer.data)
+
+
+@api_view(["POST"])
+def create_deck_flashcard(request, deck_id):
+    deck = get_object_or_404(Deck, id=deck_id, user=request.user)
+    serializer = ManualFlashcardSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    flashcard = serializer.save(deck=deck)
+    return Response(FlashcardSerializer(flashcard).data, status=201)
 
 
 @api_view(["POST"])
