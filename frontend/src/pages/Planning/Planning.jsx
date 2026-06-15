@@ -27,7 +27,6 @@ import {
   getDecks,
 } from "../../services/api";
 import { MemiGuide } from "../../components/AnimatedMemi";
-import {toast} from "sonner";
 
 const HOURS = Array.from({ length: 24 }).map((_, i) => i);
 const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
@@ -205,7 +204,7 @@ function Planning() {
       setShowModal(false);
       setEditingEvent(null);
     } catch (error) {
-      toast.error(error.message);
+      alert(error.message);
     }
   };
 
@@ -216,12 +215,12 @@ function Planning() {
       setShowModal(false);
       setEditingEvent(null);
     } catch (error) {
-      toast.error(error.message);
+      alert(error.message);
     }
   };
 
   const handleGenerateAiPlanning = async () => {
-    if (!aiDeckId || !aiExamDate) return toast.error("Choisis un deck et une date d’examen pour générer le planning IA.");
+    if (!aiDeckId || !aiExamDate) return alert("Choisis un deck et une date d'examen.");
 
     setLoadingAi(true);
 
@@ -239,10 +238,10 @@ function Planning() {
       setEvents((prev) => [...prev, ...newEvents]);
       setPlans(await getRevisionPlans());
 
-      toast.success(result.message || "Planning IA généré avec succès !");
+      alert(result.message || "Planning IA généré avec succès !");
     } catch (error) {
       console.error("Erreur génération planning IA:", error);
-      toast.error(error.message);
+      alert(error.message);
     } finally {
       setLoadingAi(false);
     }
@@ -269,7 +268,7 @@ function Planning() {
         prev.map((item) => (item.id === event.id ? sessionToEvent(saved) : item))
       );
     } catch (error) {
-      toast.error(error.message);
+      alert(error.message);
     } finally {
       setDraggedId(null);
       setHoverCell(null);
@@ -285,7 +284,7 @@ function Planning() {
       });
       setAvailabilities((prev) => [...prev, availability]);
     } catch (error) {
-      toast.error(error.message);
+      alert(error.message);
     }
   };
 
@@ -294,7 +293,7 @@ function Planning() {
       await deleteAvailability(id);
       setAvailabilities((prev) => prev.filter((item) => item.id !== id));
     } catch (error) {
-      toast.error(error.message);
+      alert(error.message);
     }
   };
 
