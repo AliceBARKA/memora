@@ -305,6 +305,27 @@ def generate_flashcards_from_course(request, course_id):
             )
         )
 
+    requested_count = options["count"]
+    generated_count = len(generated_cards)
+    if generated_count == 0:
+        return Response({
+            "error": (
+                f"Ce PDF ne contient pas assez de contenu exploitable pour générer "
+                f"{requested_count} flashcards."
+            ),
+            "requested_count": requested_count,
+            "generated_count": 0,
+            "partial_generation": True,
+        }, status=400)
+
+    partial_generation = generated_count < requested_count
+    message = (
+        f"Ce PDF ne contient pas assez de contenu exploitable pour générer "
+        f"{requested_count} flashcards. {generated_count} flashcards ont été créées."
+        if partial_generation
+        else "Flashcards générées avec succès"
+    )
+
     with transaction.atomic():
         deck, created = Deck.objects.get_or_create(
             CoursePDF=course,
@@ -328,10 +349,13 @@ def generate_flashcards_from_course(request, course_id):
         ])
 
     return Response({
-        "message": "Flashcards générées avec succès",
+        "message": message,
         "course_id": course.id,
         "deck_id": deck.id,
-        "cards_count": len(generated_cards),
+        "cards_count": generated_count,
+        "requested_count": requested_count,
+        "generated_count": generated_count,
+        "partial_generation": partial_generation,
     }, status=201)
 
 

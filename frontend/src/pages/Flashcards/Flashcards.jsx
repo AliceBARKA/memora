@@ -3,6 +3,8 @@ import flashcard from "/src/assets/flashcard.png";
 import memiImage from "/src/assets/mascot.png";
 import { deleteDeck, getDecks, uploadCoursePDF, generateFlashcardsFromCourse } from "../../services/api";
 import AnimatedMemi, { MemiGuide } from "../../components/AnimatedMemi";
+import { FlashcardGenerationResult } from "../../components/FlashcardGenerationResult";
+import { buildFlashcardGenerationResult } from "../../components/flashcardGenerationResult";
 import {
   ChevronLeft,
   ChevronRight,
@@ -32,6 +34,7 @@ function Flashcards() {
   const [generationCount, setGenerationCount] = useState(10);
   const [generationDifficulty, setGenerationDifficulty] = useState("all");
   const [generationFocus, setGenerationFocus] = useState("");
+  const [generationResult, setGenerationResult] = useState(null);
 
   
 
@@ -75,6 +78,7 @@ function Flashcards() {
 
 
   const selectDeck = (id) => {
+    setGenerationResult(null);
     setDeckId(id);
     setIdx(0);
     setFlipped(false);
@@ -87,25 +91,29 @@ function Flashcards() {
       file.name.toLowerCase().endsWith(".pdf")
     );
 
-    if (!pdf) return alert("Choisis un fichier PDF.");
+    if (!pdf) {
+      setGenerationResult(buildFlashcardGenerationResult());
+      return;
+    }
 
     try {
+      setGenerationResult(null);
       const savedCourse = await uploadCoursePDF(pdf);
-      await generateFlashcardsFromCourse(savedCourse.id, {
+      const result = await generateFlashcardsFromCourse(savedCourse.id, {
         count: generationCount,
         difficulty: generationDifficulty,
         instructions: generationFocus,
       });
+      setGenerationResult(buildFlashcardGenerationResult(result));
 
       const data = await getDecks();
       setDecks(data);
       setDeckId(data[0]?.id || null);
-      setMode("study");
 
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (error) {
       console.error(error);
-      alert(error.message);
+      setGenerationResult(buildFlashcardGenerationResult());
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
@@ -149,6 +157,7 @@ function Flashcards() {
         compact
         className="mb-6"
       />
+      <FlashcardGenerationResult result={generationResult} className="mb-6" />
 
       <PdfGenerator
         onClick={() => fileInputRef.current?.click()}
@@ -182,6 +191,14 @@ function Flashcards() {
 
   const handleRate = (kind) => {
     setProgress((prev) => ({ ...prev, [kind]: prev[kind] + 1 }));
+    setDecks((currentDecks) => currentDecks.map((currentDeck) => {
+      if (currentDeck.id !== deckId) return currentDeck;
+      return {
+        ...currentDeck,
+        mastered: (Number(currentDeck.mastered) || 0) + (kind === "good" || kind === "easy" ? 1 : 0),
+        due: (Number(currentDeck.due) || 0) + (kind === "hard" ? 1 : 0),
+      };
+    }));
     setFlipped(false);
     setTimeout(() => setIdx((i) => i + 1), 200);
   };
@@ -214,17 +231,24 @@ function Flashcards() {
         </div>
 
         <button
-          onClick={() => setMode("pdf")}
+          onClick={() => {
+            setGenerationResult(null);
+            setMode("pdf");
+          }}
           className="h-12 px-5 rounded-2xl bg-[#8B6CF6] text-white font-bold flex items-center gap-2 shadow-lg hover:bg-[#7C3AED]"
         >
           <Plus size={20} />
           Nouvelles flashcards
         </button>
       </header>
+      <FlashcardGenerationResult result={generationResult} className="mb-6" />
 
       <div className="inline-flex bg-white border border-slate-100 rounded-3xl p-2 shadow-sm mb-7">
         <button
-          onClick={() => setMode("study")}
+          onClick={() => {
+            setGenerationResult(null);
+            setMode("study");
+          }}
           className={`px-6 py-3 rounded-2xl font-bold ${mode === "study" ? "bg-[#8B6CF6] text-white" : "text-[#1E293B]"
             }`}
         >
@@ -232,7 +256,10 @@ function Flashcards() {
         </button>
 
         <button
-          onClick={() => setMode("pdf")}
+          onClick={() => {
+            setGenerationResult(null);
+            setMode("pdf");
+          }}
           className={`px-6 py-3 rounded-2xl font-bold ${mode === "pdf" ? "bg-[#8B6CF6] text-white" : "text-[#1E293B]"
             }`}
         >

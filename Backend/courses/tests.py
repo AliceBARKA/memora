@@ -265,10 +265,40 @@ class CoursesAPITests(TestCase):
             focus="Focus examens",
         )
         self.assertEqual(response.data["cards_count"], 15)
+        self.assertEqual(response.data["requested_count"], 15)
+        self.assertEqual(response.data["generated_count"], 15)
+        self.assertFalse(response.data["partial_generation"])
+
+    @patch("courses.views.extract_text_from_pdf", return_value="Cours utile")
+    @patch("courses.views.generate_flashcards_pipeline")
+    def test_incomplete_flashcard_generation_saves_partial_result(self, _generate, _extract):
+        deck = self.create_deck()
+        Flashcard.objects.create(deck=deck, question="Existing", answer="Answer")
+        _generate.return_value = self.flashcards(3)
+
+        response = self.client.post(
+            f"/api/courses/{deck.CoursePDF_id}/generate-flashcards/",
+            {"count": 10},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(deck.flashcards.count(), 3)
+        self.assertNotIn("Existing", deck.flashcards.values_list("question", flat=True))
+        self.assertEqual(response.data["requested_count"], 10)
+        self.assertEqual(response.data["generated_count"], 3)
+        self.assertTrue(response.data["partial_generation"])
+        self.assertEqual(
+            response.data["message"],
+            "Ce PDF ne contient pas assez de contenu exploitable pour générer 10 flashcards. "
+            "3 flashcards ont été créées.",
+        )
 
     @patch("courses.views.extract_text_from_pdf", return_value="Cours utile")
     @patch("courses.views.generate_flashcards_pipeline", return_value=[])
-    def test_incomplete_flashcard_generation_saves_partial_result(self, _generate, _extract):
+    def test_empty_flashcard_generation_returns_error_without_replacing_deck(
+        self, _generate, _extract
+    ):
         deck = self.create_deck()
         Flashcard.objects.create(deck=deck, question="Existing", answer="Answer")
 
@@ -278,9 +308,10 @@ class CoursesAPITests(TestCase):
             format="json",
         )
 
-        self.assertEqual(response.status_code, 201)
-        self.assertEqual(deck.flashcards.count(), 0)
-        self.assertNotIn("Existing", deck.flashcards.values_list("question", flat=True))
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["generated_count"], 0)
+        self.assertTrue(response.data["partial_generation"])
+        self.assertEqual(deck.flashcards.count(), 1)
 
     @patch("courses.views.generate_personal_quiz_with_groq")
     def test_personal_quiz_retries_until_requested_count(self, generate):
