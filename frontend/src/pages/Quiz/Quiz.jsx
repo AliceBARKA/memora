@@ -20,6 +20,8 @@ import {
     Trash2,
 } from "lucide-react";
 
+const ABSOLUTE_MAX_QUIZ_COUNT = 40;
+
 function formatQuiz(quiz) {
     return {
         id: quiz.id,
@@ -41,6 +43,7 @@ function Quiz() {
     const [quizzes, setQuizzes] = useState([]);
     const [decks, setDecks] = useState([]);
     const [showCourses, setShowCourses] = useState(false);
+    const [selectedDeck, setSelectedDeck] = useState(null);
     const [loadingQuizCourseId, setLoadingQuizCourseId] = useState(null);
     const [showPersonalForm, setShowPersonalForm] = useState(false);
     const [personalTopic, setPersonalTopic] = useState("");
@@ -73,24 +76,45 @@ function Quiz() {
         loadQuizData();
     }, []);
 
-    const generateQuizFromDeck = async (deck) => {
-        try {
-            setLoadingQuizCourseId(deck.id);
+    const selectDeck = (deck) => {
+        const maximumQuestions = Math.min(
+            deck.cards?.length || 0,
+            ABSOLUTE_MAX_QUIZ_COUNT
+        );
+        const minimumQuestions = Math.min(5, maximumQuestions);
+        setSelectedDeck(deck);
+        setQuestionCount((current) => Math.min(
+            maximumQuestions,
+            Math.max(minimumQuestions, Number(current) || minimumQuestions)
+        ));
+    };
 
-            const result = await generateQuizFromDeckApi(deck.id, {
-                count: questionCount,
+    const generateQuizFromDeck = async () => {
+        if (!selectedDeck || selectedDeck.cards?.length === 0) return;
+
+        try {
+            setLoadingQuizCourseId(selectedDeck.id);
+            const maximumQuestions = Math.min(
+                selectedDeck.cards.length,
+                ABSOLUTE_MAX_QUIZ_COUNT
+            );
+
+            const result = await generateQuizFromDeckApi(selectedDeck.id, {
+                count: Math.min(Number(questionCount) || 1, maximumQuestions),
                 difficulty: quizDifficulty,
                 instructions: quizInstructions,
             });
             if (result.already_exists) {
                 alert(result.message || "Quiz déjà généré.");
                 setShowCourses(false);
+                setSelectedDeck(null);
                 return;
             }
             const newQuiz = formatQuiz(result);
 
             setQuizzes((prev) => [newQuiz, ...prev]);
             setShowCourses(false);
+            setSelectedDeck(null);
         } catch (err) {
             console.error(err);
             alert(err.message);
@@ -286,6 +310,9 @@ function Quiz() {
                                 <QuizOptions
                                     count={questionCount}
                                     setCount={setQuestionCount}
+                                    maxCount={selectedDeck
+                                        ? Math.min(selectedDeck.cards?.length || 0, ABSOLUTE_MAX_QUIZ_COUNT)
+                                        : ABSOLUTE_MAX_QUIZ_COUNT}
                                     difficulty={quizDifficulty}
                                     setDifficulty={setQuizDifficulty}
                                     instructions={quizInstructions}
@@ -299,22 +326,52 @@ function Quiz() {
                                     {decks.map((deck) => (
                                         <button disabled={loadingQuizCourseId !== null}
                                             key={deck.id}
-                                            onClick={() => {
-                                                generateQuizFromDeck(deck);
-                                            }}
-                                            className="w-full text-left px-4 py-3 rounded-xl hover:bg-[#F3F0FF] transition text-slate-700 font-medium"
+                                            onClick={() => selectDeck(deck)}
+                                            className={`w-full text-left px-4 py-3 rounded-xl transition text-slate-700 font-medium ${
+                                                selectedDeck?.id === deck.id
+                                                    ? "bg-[#F3F0FF] ring-2 ring-[#8B6CF6]/30"
+                                                    : "hover:bg-[#F3F0FF]"
+                                            }`}
                                         >
-                                            {loadingQuizCourseId === deck.id ? (
-                                                <span className="flex items-center gap-2">
-                                                    <span className="w-4 h-4 border-2 border-[#8B6CF6] border-t-transparent rounded-full animate-spin"></span>
-                                                    Génération...
-                                                </span>
-                                            ) : (
-                                                deck.title.replace("Flashcards - ", "")
-                                            )}
+                                            {deck.title.replace("Flashcards - ", "")}
                                         </button>
                                     ))}
                                 </div>
+
+                                {selectedDeck && (
+                                    <div className="mt-3 rounded-xl bg-[#F8F7FF] p-3 text-sm text-slate-700">
+                                        <p className="font-bold">
+                                            Cours sélectionné : {selectedDeck.title.replace("Flashcards - ", "")}
+                                        </p>
+                                        <p className="mt-1 text-slate-500">
+                                            Maximum disponible : {Math.min(selectedDeck.cards?.length || 0, ABSOLUTE_MAX_QUIZ_COUNT)} questions ({selectedDeck.cards?.length || 0} flashcards)
+                                        </p>
+                                        {(selectedDeck.cards?.length || 0) === 0 && (
+                                            <p className="mt-2 font-bold text-amber-600">
+                                                Ce cours ne contient pas encore de flashcards.
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={generateQuizFromDeck}
+                                    disabled={
+                                        loadingQuizCourseId !== null
+                                        || !selectedDeck
+                                        || (selectedDeck.cards?.length || 0) === 0
+                                    }
+                                    className="mt-3 w-full h-11 rounded-xl bg-[#8B6CF6] text-white font-bold flex items-center justify-center gap-2 disabled:opacity-50"
+                                >
+                                    {loadingQuizCourseId !== null ? (
+                                        <>
+                                            <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                            Génération...
+                                        </>
+                                    ) : (
+                                        "Générer le quiz"
+                                    )}
+                                </button>
                             </div>
                         )}
                     </div>
@@ -419,7 +476,17 @@ function QuizCard({ quiz, onStart, onDelete }) {
     );
 }
 
-function QuizOptions({ count, setCount, difficulty, setDifficulty, instructions, setInstructions }) {
+function QuizOptions({
+    count,
+    setCount,
+    maxCount = ABSOLUTE_MAX_QUIZ_COUNT,
+    difficulty,
+    setDifficulty,
+    instructions,
+    setInstructions,
+}) {
+    const minimumCount = maxCount === 0 ? 0 : maxCount < 5 ? 1 : 5;
+
     return (
         <div className="grid gap-2 mb-3 text-slate-700">
             <div className="grid grid-cols-2 gap-2">
@@ -427,14 +494,16 @@ function QuizOptions({ count, setCount, difficulty, setDifficulty, instructions,
                     Questions
                     <input
                         type="number"
-                        min="5"
-                        max="30"
+                        min={minimumCount}
+                        max={maxCount}
                         value={count}
                         onChange={(event) => setCount(
                             event.target.value === "" ? "" : Number(event.target.value)
                         )}
                         onBlur={() => setCount(
-                            Math.min(30, Math.max(5, Number(count) || 10))
+                            maxCount === 0
+                                ? 0
+                                : Math.min(maxCount, Math.max(minimumCount, Number(count) || minimumCount))
                         )}
                         className="mt-1 w-full h-9 rounded-xl border border-slate-200 px-2"
                     />

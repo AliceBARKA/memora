@@ -9,6 +9,46 @@ from .models import (
     Folder
 )
 
+ABSOLUTE_MAX_QUIZ_COUNT = 40
+
+
+class DeckQuizGenerationSerializer(serializers.Serializer):
+    count = serializers.IntegerField(required=False, min_value=1)
+    difficulty = serializers.ChoiceField(
+        choices=["all", "easy", "medium", "hard"],
+        default="all",
+    )
+    instructions = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default="",
+        max_length=500,
+    )
+    focus = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        write_only=True,
+        max_length=500,
+    )
+
+    def validate(self, attrs):
+        maximum = min(self.context["flashcard_count"], ABSOLUTE_MAX_QUIZ_COUNT)
+        attrs["count"] = attrs.get("count", min(10, maximum))
+        if not attrs.get("instructions") and attrs.get("focus"):
+            attrs["instructions"] = attrs["focus"]
+        attrs.pop("focus", None)
+        return attrs
+
+    def validate_count(self, count):
+        flashcard_count = self.context["flashcard_count"]
+        maximum = min(flashcard_count, ABSOLUTE_MAX_QUIZ_COUNT)
+        if count > maximum:
+            raise serializers.ValidationError(
+                f"Le nombre de questions ne peut pas dépasser {maximum} pour ce deck."
+            )
+        return count
+
+
 class FolderSerializer(serializers.ModelSerializer):
     courses_count = serializers.SerializerMethodField()
 
@@ -26,6 +66,25 @@ class FlashcardSerializer(serializers.ModelSerializer):
     class Meta:
         model = Flashcard
         fields = ["id", "front", "back", "difficulty"]
+
+
+class ManualFlashcardSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Flashcard
+        fields = ["id", "question", "answer", "difficulty"]
+        read_only_fields = ["id"]
+
+    def validate_question(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("La question est obligatoire.")
+        return value
+
+    def validate_answer(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("La réponse est obligatoire.")
+        return value
 
 
 class DeckSerializer(serializers.ModelSerializer):

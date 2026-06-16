@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { getCourseFileBlob, getCourses, uploadCoursePDF, updateCourse, deleteCourseApi, generateFlashcardsFromCourse, generateSummaryFromCourse, askQuestionFromCourse } from "../../services/api";
+import { getCourseFileBlob, getCourses, getDecks, uploadCoursePDF, updateCourse, deleteCourseApi, generateFlashcardsFromCourse, generateSummaryFromCourse, askQuestionFromCourse } from "../../services/api";
 import {
   Search,
   Filter,
@@ -21,6 +21,8 @@ Check,
 
 } from "lucide-react";
 import { MemiGuide } from "../../components/AnimatedMemi";
+import { FlashcardGenerationResult } from "../../components/FlashcardGenerationResult";
+import { buildFlashcardGenerationResult } from "../../components/flashcardGenerationResult";
 
 const initialSubjects = [];
 const initialCourses = [];
@@ -38,7 +40,8 @@ function Courses() {
   const [newSubject, setNewSubject] = useState("");
   const [loadingSummary, setLoadingSummary] = useState(false);
   const [loadingFlashcards, setLoadingFlashcards] = useState(false);
-  const [flashcardsReady, setFlashcardsReady] = useState(false);
+  const [coursesWithFlashcards, setCoursesWithFlashcards] = useState(new Set());
+  const [flashcardGenerationResult, setFlashcardGenerationResult] = useState(null);
   const [globalChatOpen, setGlobalChatOpen] = useState(false);
   const [globalQuestion, setGlobalQuestion] = useState("");
   const [globalAnswer, setGlobalAnswer] = useState("");
@@ -66,7 +69,7 @@ const [editingChatTitle, setEditingChatTitle] = useState("");
   useEffect(() => {
     async function loadCourses() {
       try {
-        const data = await getCourses();
+        const [data, loadedDecks] = await Promise.all([getCourses(), getDecks()]);
 
         const formatted = data.map((course) => ({
           id: course.id,
@@ -79,6 +82,13 @@ const [editingChatTitle, setEditingChatTitle] = useState("");
         }));
 
         setCourses(formatted);
+        setCoursesWithFlashcards(new Set(
+          formatted
+            .filter((course) => loadedDecks.some(
+              (deck) => deck.title.replace("Flashcards - ", "") === course.title
+            ))
+            .map((course) => course.id)
+        ));
         const colors = ["#8B6CF6", "#60A5FA", "#34D399", "#FBBF24", "#F472B6"];
         setSubjects(
           [...new Set(formatted.map((course) => course.subjectId))].map((name, index) => ({
@@ -301,15 +311,28 @@ const startNewGlobalChat = () => {
 
 const generateFlashcards = async (courseId, options) => {
   try {
+    setFlashcardGenerationResult(null);
     setLoadingFlashcards(true);
-    await generateFlashcardsFromCourse(courseId, options);
-    setFlashcardsReady(true);
+    const result = await generateFlashcardsFromCourse(courseId, options);
+    setFlashcardGenerationResult(buildFlashcardGenerationResult(result));
+    await getDecks();
+    setCoursesWithFlashcards((current) => new Set(current).add(courseId));
   } catch (error) {
     console.error("Erreur génération flashcards :", error);
-    alert(error.message);
+    setFlashcardGenerationResult(buildFlashcardGenerationResult());
   }finally {
     setLoadingFlashcards(false);
   }
+};
+
+const openCourseDrawer = (course) => {
+  setFlashcardGenerationResult(null);
+  setOpenCourse(course);
+};
+
+const closeCourseDrawer = () => {
+  setFlashcardGenerationResult(null);
+  setOpenCourse(null);
 };
 
 const addSubject = () => {
@@ -358,7 +381,7 @@ const addSubject = () => {
     try {
       await deleteCourseApi(id);
       setCourses((prev) => prev.filter((course) => course.id !== id));
-      if (openCourse?.id === id) setOpenCourse(null);
+      if (openCourse?.id === id) closeCourseDrawer();
     } catch (error) {
       console.error(error);
       alert("Erreur pendant la suppression du cours.");
@@ -620,7 +643,7 @@ const addSubject = () => {
               key={course.id}
               course={course}
               getSubject={getSubject}
-              onOpen={() => setOpenCourse(course)}
+              onOpen={() => openCourseDrawer(course)}
               onRename={renameCourse}
               onDelete={deleteCourse}
             />
@@ -633,7 +656,7 @@ const addSubject = () => {
               key={course.id}
               course={course}
               getSubject={getSubject}
-              onOpen={() => setOpenCourse(course)}
+              onOpen={() => openCourseDrawer(course)}
               onDelete={deleteCourse}
             />
           ))}
@@ -644,14 +667,15 @@ const addSubject = () => {
         <CourseDrawer
           course={openCourse}
           getSubject={getSubject}
-          onClose={() => setOpenCourse(null)}
+          onClose={closeCourseDrawer}
           onRename={renameCourse}
           onDelete={deleteCourse}
           onGenerateSummary={generateSummary}
           loadingSummary={loadingSummary}
           onGenerateFlashcards={generateFlashcards}
           loadingFlashcards={loadingFlashcards}
-          flashcardsReady={flashcardsReady}
+          flashcardsReady={coursesWithFlashcards.has(openCourse.id)}
+          flashcardGenerationResult={flashcardGenerationResult}
           subjects={subjects}
           onAssignSubject={assignSubject}
         />
@@ -1056,7 +1080,7 @@ function CourseRow({ course, getSubject, onOpen, onDelete }) {
   );
 }
 
-function CourseDrawer({ course, getSubject, onClose, onRename, onDelete, onGenerateSummary, loadingSummary, onGenerateFlashcards, loadingFlashcards, flashcardsReady, subjects, onAssignSubject }) {
+function CourseDrawer({ course, getSubject, onClose, onRename, onDelete, onGenerateSummary, loadingSummary, onGenerateFlashcards, loadingFlashcards, flashcardsReady, flashcardGenerationResult, subjects, onAssignSubject }) {
   const subject = getSubject(course.subjectId);
   const [title, setTitle] = useState(course.title);
   const [question, setQuestion] = useState("");
@@ -1180,7 +1204,9 @@ function CourseDrawer({ course, getSubject, onClose, onRename, onDelete, onGener
         </div>
 
         <div className="p-8">
-          {(loadingFlashcards || loadingSummary) && (
+          {flashcardGenerationResult ? (
+            <FlashcardGenerationResult result={flashcardGenerationResult} className="mb-5" />
+          ) : (loadingFlashcards || loadingSummary) && (
             <MemiGuide
               mood={loadingSummary ? "thinking" : "working"}
               eyebrow="Memi travaille"

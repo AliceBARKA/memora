@@ -4,9 +4,9 @@ import django
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "memora_api.settings")
 django.setup()
 
-from ai_service.flashcards import generate_flashcards_with_groq
-from ai_service.quiz import generate_quiz_with_groq
-from ai_service.summary import generate_summary_with_groq
+from ai_service.flashcards import generate_flashcards_with_openai
+from ai_service.quiz import generate_quiz_with_openai
+from ai_service.summary import generate_summary_with_openai
 
 
 sample_course = """
@@ -19,7 +19,7 @@ Alan Turing a montré que le problème de l'arrêt est indécidable.
 
 def test_flashcards():
     print("\n=== TEST FLASHCARDS ===")
-    cards = generate_flashcards_with_groq(sample_course)
+    cards = generate_flashcards_with_openai(sample_course)
 
     print(cards)
 
@@ -36,7 +36,7 @@ def test_flashcards():
 
 def test_summary():
     print("\n=== TEST SUMMARY ===")
-    summary = generate_summary_with_groq(sample_course)
+    summary = generate_summary_with_openai(sample_course)
 
     print(summary)
 
@@ -67,7 +67,7 @@ def test_quiz():
         },
     ]
 
-    quiz = generate_quiz_with_groq(flashcards)
+    quiz = generate_quiz_with_openai(flashcards)
 
     print(quiz)
 

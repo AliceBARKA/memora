@@ -19,18 +19,22 @@ from .models import (
 )
 
 from .serializers import (
+    ABSOLUTE_MAX_QUIZ_COUNT,
     CoursePDFSerializer,
+    DeckQuizGenerationSerializer,
     DeckSerializer,
+    FlashcardSerializer,
+    ManualFlashcardSerializer,
     QuizSerializer,
     FolderSerializer
 )
 
 from ai_service.pdf_extractor import extract_text_from_pdf
 from ai_service.pipeline import build_flashcard_fallbacks, generate_flashcards_pipeline
-from ai_service.pdf_chat import ask_pdf_with_groq
-from ai_service.quiz import generate_personal_quiz_with_groq, generate_quiz_with_groq
+from ai_service.pdf_chat import ask_pdf_with_openai
+from ai_service.quiz import generate_personal_quiz_with_openai, generate_quiz_with_openai
 from ai_service.similarity import contains_similar_choice_set, contains_similar_text
-from ai_service.summary import generate_summary_with_groq
+from ai_service.summary import generate_summary_with_openai
 from ai_service.text_cleaning import canonical_text
 from ai_service.chunking import select_relevant_chunks
 
@@ -260,6 +264,15 @@ def get_decks(request):
 
 
 @api_view(["POST"])
+def create_deck_flashcard(request, deck_id):
+    deck = get_object_or_404(Deck, id=deck_id, user=request.user)
+    serializer = ManualFlashcardSerializer(data=request.data)
+    serializer.is_valid(raise_exception=True)
+    flashcard = serializer.save(deck=deck)
+    return Response(FlashcardSerializer(flashcard).data, status=201)
+
+
+@api_view(["POST"])
 def generate_flashcards_from_course(request, course_id):
     options, error = parse_generation_options(request, "count", 10, 5, 40)
     if error:
@@ -303,6 +316,27 @@ def generate_flashcards_from_course(request, course_id):
             )
         )
 
+    requested_count = options["count"]
+    generated_count = len(generated_cards)
+    if generated_count == 0:
+        return Response({
+            "error": (
+                f"Ce PDF ne contient pas assez de contenu exploitable pour générer "
+                f"{requested_count} flashcards."
+            ),
+            "requested_count": requested_count,
+            "generated_count": 0,
+            "partial_generation": True,
+        }, status=400)
+
+    partial_generation = generated_count < requested_count
+    message = (
+        f"Ce PDF ne contient pas assez de contenu exploitable pour générer "
+        f"{requested_count} flashcards. {generated_count} flashcards ont été créées."
+        if partial_generation
+        else "Flashcards générées avec succès"
+    )
+
     with transaction.atomic():
         deck, created = Deck.objects.get_or_create(
             CoursePDF=course,
@@ -326,10 +360,13 @@ def generate_flashcards_from_course(request, course_id):
         ])
 
     return Response({
-        "message": "Flashcards générées avec succès",
+        "message": message,
         "course_id": course.id,
         "deck_id": deck.id,
-        "cards_count": len(generated_cards),
+        "cards_count": generated_count,
+        "requested_count": requested_count,
+        "generated_count": generated_count,
+        "partial_generation": partial_generation,
     }, status=201)
 
 
@@ -407,7 +444,7 @@ def generate_summary_from_course(request, course_id):
         }, status=400)
 
     try:
-        summary = generate_summary_with_groq(
+        summary = generate_summary_with_openai(
             text,
             line_count=line_count,
             instructions=instructions,
@@ -467,7 +504,7 @@ def ask_question_from_course(request, course_id):
         }, status=500)
 
     try:
-        answer = ask_pdf_with_groq(text, question)
+        answer = ask_pdf_with_openai(text, question)
     except Exception as e:
         logger.exception("PDF question answering failed for course %s", course.id)
         return Response({
@@ -508,7 +545,7 @@ def generate_personal_quiz(request):
 
     try:
         generated_questions = generate_complete_set(
-            generate_personal_quiz_with_groq,
+            generate_personal_quiz_with_openai,
             topic,
             count=options["count"],
             difficulty=options["difficulty"],
@@ -560,9 +597,6 @@ def delete_quiz(request,quiz_id):
 
 @api_view(["POST"])
 def generate_quiz_from_deck(request, deck_id):
-    options, error = parse_generation_options(request, "count", 10, 5, 30)
-    if error:
-        return error
     try:
         deck = Deck.objects.get(
     id=deck_id,
@@ -576,6 +610,15 @@ def generate_quiz_from_deck(request, deck_id):
     if not flashcards.exists():
         return Response({"error": "Aucune flashcard trouvée pour ce deck"}, status=400)
 
+    flashcard_count = flashcards.count()
+    options_serializer = DeckQuizGenerationSerializer(
+        data=request.data,
+        context={"flashcard_count": flashcard_count},
+    )
+    if not options_serializer.is_valid():
+        return Response(options_serializer.errors, status=400)
+    options = options_serializer.validated_data
+
     flashcards_data = [
         {
             "question": card.question,
@@ -584,12 +627,16 @@ def generate_quiz_from_deck(request, deck_id):
         }
         for card in flashcards
     ]
+    effective_count = min(
+        options["count"],
+        flashcard_count,
+        ABSOLUTE_MAX_QUIZ_COUNT,
+    )
 
     try:
-        generated_questions = generate_complete_set(
-            generate_quiz_with_groq,
+        generated_questions = generate_quiz_with_openai(
             flashcards_data,
-            count=options["count"],
+            count=effective_count,
             difficulty=options["difficulty"],
             instructions=options["instructions"],
         )
@@ -597,12 +644,12 @@ def generate_quiz_from_deck(request, deck_id):
         logger.exception("Quiz generation failed for deck %s", deck.id)
         generated_questions = []
 
-    if len(generated_questions) < options["count"]:
+    if len(generated_questions) < effective_count:
         generated_questions.extend(
             build_quiz_fallbacks(
                 flashcards_data,
                 generated_questions,
-                options["count"],
+                effective_count,
             )
         )
 
@@ -625,7 +672,9 @@ def generate_quiz_from_deck(request, deck_id):
 
     serializer = QuizSerializer(quiz)
 
-    return Response(serializer.data, status=201)
+    response_data = dict(serializer.data)
+    response_data["effective_count"] = effective_count
+    return Response(response_data, status=201)
 
 
 @api_view(["POST"])
@@ -821,7 +870,7 @@ def global_chat(request):
     context = "\n\n".join(context_parts)
     context = context[:4500]
 
-    answer = ask_pdf_with_groq(context, question)
+    answer = ask_pdf_with_openai(context, question)
 
     return Response({
         "question": question,
