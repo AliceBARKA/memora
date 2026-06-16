@@ -15,14 +15,11 @@ import {
   Trash2,
   Bot,
   Send,
-  Folder,
-  MoreHorizontal,
-Check,
 
 } from "lucide-react";
 import { MemiGuide } from "../../components/AnimatedMemi";
-//import { FlashcardGenerationResult } from "../../components/FlashcardGenerationResult";
-import { buildFlashcardGenerationResult } from "../../components/FlashcardGenerationResult";
+import { FlashcardGenerationResult } from "../../components/FlashcardGenerationResult";
+import { buildFlashcardGenerationResult } from "../../components/flashcardGenerationResult";
 
 const initialSubjects = [];
 const initialCourses = [];
@@ -44,8 +41,6 @@ function Courses() {
   const [flashcardGenerationResult, setFlashcardGenerationResult] = useState(null);
   const [globalChatOpen, setGlobalChatOpen] = useState(false);
   const [globalQuestion, setGlobalQuestion] = useState("");
-  const [globalAnswer, setGlobalAnswer] = useState("");
-  const [globalSources, setGlobalSources] = useState([]);
   const [globalLoading, setGlobalLoading] = useState(false);
   const [selectedGlobalCourse, setSelectedGlobalCourse] = useState("all");
   const [chatSessions, setChatSessions] = useState(() => {
@@ -57,8 +52,6 @@ function Courses() {
 
 const [activeChatId, setActiveChatId] = useState("chat-1");
   const [folderMenuOpen, setFolderMenuOpen] = useState(null);
-const [editingSubject, setEditingSubject] = useState(null);
-const [editingSubjectName, setEditingSubjectName] = useState("");
 const [editingChatId, setEditingChatId] = useState(null);
 const [editingChatTitle, setEditingChatTitle] = useState("");
 
@@ -197,7 +190,7 @@ const startNewGlobalChat = () => {
   const generateSummary = async (courseId, options) => {
   try {
     setLoadingSummary(true);
-      const result = await generateSummaryFromCourse(courseId);
+      const result = await generateSummaryFromCourse(courseId, options);
 
       if (!result.summary || result.summary.trim() === "") {
         alert("Le résumé n'a pas été généré.");

@@ -3,8 +3,8 @@ import flashcard from "/src/assets/flashcard.png";
 import memiImage from "/src/assets/mascot.png";
 import { createDeckFlashcard, deleteDeck, getDecks, uploadCoursePDF, generateFlashcardsFromCourse } from "../../services/api";
 import AnimatedMemi, { MemiGuide } from "../../components/AnimatedMemi";
-//import { FlashcardGenerationResult } from "../../components/FlashcardGenerationResult";
-import { buildFlashcardGenerationResult } from "../../components/FlashcardGenerationResult";
+import { FlashcardGenerationResult } from "../../components/FlashcardGenerationResult";
+import { buildFlashcardGenerationResult } from "../../components/flashcardGenerationResult";
 import {
   ChevronLeft,
   ChevronRight,
@@ -170,15 +170,7 @@ function Flashcards() {
         compact
         className="mb-6"
       />
-      {generationResult && (
-  <MemiGuide
-    mood={generationResult.mood}
-    title={generationResult.title}
-    message={generationResult.message}
-    compact
-    className="mb-6"
-  />
-)}
+      <FlashcardGenerationResult result={generationResult} className="mb-6" />
 
       <PdfGenerator
         onClick={() => fileInputRef.current?.click()}
