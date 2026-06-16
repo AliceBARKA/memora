@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { getCourseFileBlob, getCourses, getDecks, uploadCoursePDF, updateCourse, deleteCourseApi, generateFlashcardsFromCourse, generateSummaryFromCourse, askQuestionFromCourse } from "../../services/api";
+import { getCourseFileBlob, getCourses, getDecks, uploadCoursePDF, updateCourse, deleteCourseApi, generateFlashcardsFromCourse, generateSummaryFromCourse, askQuestionFromCourse, askGlobalCourseQuestion } from "../../services/api";
 import {
   Search,
   Filter,
@@ -70,10 +70,12 @@ const [editingChatTitle, setEditingChatTitle] = useState("");
     async function loadCourses() {
       try {
         const [data, loadedDecks] = await Promise.all([getCourses(), getDecks()]);
+        const courseList = Array.isArray(data) ? data : [];
+        const deckList = Array.isArray(loadedDecks) ? loadedDecks : [];
 
-        const formatted = data.map((course) => ({
+        const formatted = courseList.map((course) => ({
           id: course.id,
-          title: course.title,
+          title: course.title || "Cours sans titre",
           subjectId: course.subject || null,
           description: "",
           chapters: [],
@@ -84,8 +86,8 @@ const [editingChatTitle, setEditingChatTitle] = useState("");
         setCourses(formatted);
         setCoursesWithFlashcards(new Set(
           formatted
-            .filter((course) => loadedDecks.some(
-              (deck) => deck.title.replace("Flashcards - ", "") === course.title
+            .filter((course) => deckList.some(
+              (deck) => (deck.title || "").replace("Flashcards - ", "") === course.title
             ))
             .map((course) => course.id)
         ));
@@ -251,21 +253,10 @@ const startNewGlobalChat = () => {
   );
 
   try {
-    const token = localStorage.getItem("token");
-
-    const res = await fetch("http://127.0.0.1:8000/api/courses/global-chat/", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Token ${token}`,
-      },
-      body: JSON.stringify({
-        question,
-        course_id: selectedGlobalCourse === "all" ? null : selectedGlobalCourse,
-      }),
+    const data = await askGlobalCourseQuestion({
+      question,
+      course_id: selectedGlobalCourse === "all" ? null : selectedGlobalCourse,
     });
-
-    const data = await res.json();
 
     setChatSessions((prev) =>
       prev.map((chat) =>

@@ -1,10 +1,3 @@
-const DEFAULT_API_ORIGIN = window.location.hostname.includes("github.io")
-  ? "https://memora-backend-fqtz.onrender.com"
-  : "http://127.0.0.1:8000";
-
-export const API_ORIGIN = (
-  import.meta.env.VITE_API_ORIGIN || DEFAULT_API_ORIGIN
-).replace(/\/$/, "");
 
 const API_URL = `${API_ORIGIN}/api`;
 
@@ -190,6 +183,14 @@ export function askQuestionFromCourse(courseId, question) {
     `/courses/${courseId}/ask/`,
     jsonOptions("POST", { question }),
     "Erreur question IA"
+  );
+}
+
+export function askGlobalCourseQuestion(data) {
+  return apiFetch(
+    "/courses/global-chat/",
+    jsonOptions("POST", data),
+    "Erreur question IA globale"
   );
 }
 
