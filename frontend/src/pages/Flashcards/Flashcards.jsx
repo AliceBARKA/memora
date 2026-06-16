@@ -4,7 +4,7 @@ import memiImage from "/src/assets/mascot.png";
 import { createDeckFlashcard, deleteDeck, getDecks, uploadCoursePDF, generateFlashcardsFromCourse } from "../../services/api";
 import AnimatedMemi, { MemiGuide } from "../../components/AnimatedMemi";
 //import { FlashcardGenerationResult } from "../../components/FlashcardGenerationResult";
-import { buildFlashcardGenerationResult } from "../../components/FlashcardGenerationResult";
+import { buildFlashcardGenerationResult } from "../../components/flashcardGenerationResult";
 import {
   ChevronLeft,
   ChevronRight,
