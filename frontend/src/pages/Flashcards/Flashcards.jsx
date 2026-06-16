@@ -3,8 +3,8 @@ import flashcard from "/src/assets/flashcard.png";
 import memiImage from "/src/assets/mascot.png";
 import { createDeckFlashcard, deleteDeck, getDecks, uploadCoursePDF, generateFlashcardsFromCourse } from "../../services/api";
 import AnimatedMemi, { MemiGuide } from "../../components/AnimatedMemi";
-import { FlashcardGenerationResult } from "../../components/FlashcardGenerationResult";
-import { buildFlashcardGenerationResult } from "../../components/flashcardGenerationResult";
+//import { FlashcardGenerationResult } from "../../components/FlashcardGenerationResult";
+import { buildFlashcardGenerationResult } from "../../components/FlashcardGenerationResult";
 import {
   ChevronLeft,
   ChevronRight,
@@ -168,7 +168,15 @@ function Flashcards() {
         compact
         className="mb-6"
       />
-      <FlashcardGenerationResult result={generationResult} className="mb-6" />
+      {generationResult && (
+  <MemiGuide
+    mood={generationResult.mood}
+    title={generationResult.title}
+    message={generationResult.message}
+    compact
+    className="mb-6"
+  />
+)}
 
       <PdfGenerator
         onClick={() => fileInputRef.current?.click()}
@@ -278,7 +286,15 @@ function Flashcards() {
           Nouvelles flashcards
         </button>
       </header>
-      <FlashcardGenerationResult result={generationResult} className="mb-6" />
+      {generationResult && (
+        <MemiGuide
+          mood={generationResult.mood}
+          title={generationResult.title}
+          message={generationResult.message}
+          compact
+          className="mb-6"
+        />
+      )}
 
       <div className="inline-flex bg-white border border-slate-100 rounded-3xl p-2 shadow-sm mb-7">
         <button

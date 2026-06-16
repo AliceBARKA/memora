@@ -21,8 +21,8 @@ Check,
 
 } from "lucide-react";
 import { MemiGuide } from "../../components/AnimatedMemi";
-import { FlashcardGenerationResult } from "../../components/FlashcardGenerationResult";
-import { buildFlashcardGenerationResult } from "../../components/flashcardGenerationResult";
+//import { FlashcardGenerationResult } from "../../components/FlashcardGenerationResult";
+import { buildFlashcardGenerationResult } from "../../components/FlashcardGenerationResult";
 
 const initialSubjects = [];
 const initialCourses = [];
