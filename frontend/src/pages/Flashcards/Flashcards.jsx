@@ -49,9 +49,10 @@ function Flashcards() {
       try {
         const data = await getDecks();
 
-        if (Array.isArray(data) && data.length > 0) {
-  setDecks(data);
-  setDeckId(data[0].id);
+        const deckList = Array.isArray(data) ? data : [];
+        if (deckList.length > 0) {
+  setDecks(deckList);
+  setDeckId(deckList[0].id);
 } else {
   setDecks([]);
   setDeckId(null);
@@ -69,7 +70,7 @@ function Flashcards() {
   const filteredDecks = useMemo(
     () =>
       decks.filter((deck) =>
-        deck.title.toLowerCase().includes(search.toLowerCase())
+        (deck.title || "").toLowerCase().includes(search.toLowerCase())
       ),
     [decks, search]
   );
@@ -118,8 +119,9 @@ function Flashcards() {
       setGenerationResult(buildFlashcardGenerationResult(result));
 
       const data = await getDecks();
-      setDecks(data);
-      setDeckId(data[0]?.id || null);
+      const deckList = Array.isArray(data) ? data : [];
+      setDecks(deckList);
+      setDeckId(deckList[0]?.id || null);
 
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (error) {
@@ -189,7 +191,7 @@ function Flashcards() {
   };
 
   const shuffleCards = () => {
-  const shuffled = [...deck.cards];
+  const shuffled = [...(deck.cards || [])];
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
     const swapIndex = Math.floor(Math.random() * (index + 1));
     [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
@@ -397,7 +399,7 @@ function Flashcards() {
                       {d.title}
                     </h3>
                     <p className="text-sm text-slate-400">
-                      {d.subject} · {d.cards.length} cartes
+                      {d.subject} · {(d.cards || []).length} cartes
                     </p>
 
                     <div className="flex gap-2 mt-2">

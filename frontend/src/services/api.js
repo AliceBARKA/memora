@@ -1,4 +1,6 @@
-export const API_ORIGIN = (import.meta.env.VITE_API_ORIGIN || "http://127.0.0.1:8000").replace(
+const DEFAULT_API_ORIGIN = `${window.location.protocol}//${window.location.hostname}:8000`;
+
+export const API_ORIGIN = (import.meta.env.VITE_API_ORIGIN || DEFAULT_API_ORIGIN).replace(
   /\/$/,
   ""
 );
@@ -186,6 +188,14 @@ export function askQuestionFromCourse(courseId, question) {
     `/courses/${courseId}/ask/`,
     jsonOptions("POST", { question }),
     "Erreur question IA"
+  );
+}
+
+export function askGlobalCourseQuestion(data) {
+  return apiFetch(
+    "/courses/global-chat/",
+    jsonOptions("POST", data),
+    "Erreur question IA globale"
   );
 }
 
