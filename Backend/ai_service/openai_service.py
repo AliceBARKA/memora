@@ -7,11 +7,11 @@ from openai import OpenAI
 BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(BASE_DIR / ".env")
 
-MODEL = os.getenv("GROQ_MODEL", "gpt-4o-mini")
+MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 JSON_RESPONSE_FORMAT = {"type": "json_object"}
 MAX_JSON_COMPLETION_TOKENS = 3072
 
-api_key = os.getenv("GROQ_API_KEY")
+api_key = os.getenv("OPENAI_API_KEY")
 client = None
 
 
@@ -20,14 +20,14 @@ def get_client():
 
     if client is None:
         if not api_key:
-            raise ValueError("GROQ_API_KEY not found in Backend/.env")
+            raise ValueError("OPENAI_API_KEY not found in Backend/.env")
 
         client = OpenAI(api_key=api_key)
 
     return client
 
 
-def call_groq_json(prompt, system_prompt, temperature=0.1, max_completion_tokens=None):
+def call_openai_json(prompt, system_prompt, temperature=0.1, max_completion_tokens=None):
     response = get_client().chat.completions.create(
         model=MODEL,
         messages=[
@@ -42,7 +42,7 @@ def call_groq_json(prompt, system_prompt, temperature=0.1, max_completion_tokens
     return response.choices[0].message.content
 
 
-def call_groq_text(prompt, system_prompt, temperature=0.2):
+def call_openai_text(prompt, system_prompt, temperature=0.2):
     response = get_client().chat.completions.create(
         model=MODEL,
         messages=[

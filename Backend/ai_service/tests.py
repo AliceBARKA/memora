@@ -3,18 +3,18 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from django.test import SimpleTestCase
-from groq import RateLimitError
+from openai import RateLimitError
 
 from .chunking import build_balanced_contexts, select_relevant_chunks
-from .groq_service import JSON_RESPONSE_FORMAT, call_groq_json
+from .openai_service import JSON_RESPONSE_FORMAT, call_openai_json
 from .parsing import extract_json_array, match_correct_answer
-from .pdf_chat import ask_pdf_with_groq
+from .pdf_chat import ask_pdf_with_openai
 from .pipeline import build_flashcard_fallbacks, generate_flashcards_pipeline
-from .planning import generate_revision_plan_with_groq
+from .planning import generate_revision_plan_with_openai
 from .prompts import build_flashcards_prompt, build_revision_plan_prompt
-from .quiz import generate_quiz_with_groq
+from .quiz import generate_quiz_with_openai
 from .similarity import choice_sets_are_similar, has_duplicate_choices, texts_are_similar
-from .summary import generate_summary_with_groq
+from .summary import generate_summary_with_openai
 from .validators import validate_flashcards
 
 
@@ -60,8 +60,8 @@ class JsonExtractionTests(SimpleTestCase):
             ["La transmission fiable", "Le routage", "Le chiffrement", "La compression"],
         ))
 
-    @patch("ai_service.groq_service.get_client")
-    def test_groq_json_transport_uses_json_object_mode(self, get_client):
+    @patch("ai_service.openai_service.get_client")
+    def test_openai_json_transport_uses_json_object_mode(self, get_client):
         create = Mock(return_value=SimpleNamespace(
             choices=[SimpleNamespace(message=SimpleNamespace(content=(
                 '{"items": [{"question": "Q", "choices": ["A", "B", "C", "D"], '
@@ -72,13 +72,13 @@ class JsonExtractionTests(SimpleTestCase):
             chat=SimpleNamespace(completions=SimpleNamespace(create=create))
         )
 
-        content = call_groq_json("Prompt", "System")
+        content = call_openai_json("Prompt", "System")
 
         self.assertIn('"question": "Q"', content)
         self.assertEqual(create.call_args.kwargs["response_format"], JSON_RESPONSE_FORMAT)
 
-    @patch("ai_service.quiz.call_groq_json")
-    def test_quiz_generation_removes_repeated_questions_and_choice_sets(self, call_groq):
+    @patch("ai_service.quiz.call_openai_json")
+    def test_quiz_generation_removes_repeated_questions_and_choice_sets(self, call_openai):
         content = json.dumps({"items": [
             {
                 "question": "Quel est le rôle principal du protocole TCP ?",
@@ -105,9 +105,9 @@ class JsonExtractionTests(SimpleTestCase):
                 "explanation": "UDP privilégie la rapidité.",
             },
         ]}, ensure_ascii=False)
-        call_groq.return_value = content
+        call_openai.return_value = content
 
-        questions = generate_quiz_with_groq(
+        questions = generate_quiz_with_openai(
             [{"question": "Source", "answer": "Answer", "difficulty": "easy"}],
             count=4,
         )
@@ -120,24 +120,24 @@ class JsonExtractionTests(SimpleTestCase):
             ],
         )
 
-    @patch("ai_service.quiz.call_groq_json")
-    def test_quiz_deduplicates_source_and_oversamples_before_filtering(self, call_groq):
-        call_groq.return_value = json.dumps({"items": []})
+    @patch("ai_service.quiz.call_openai_json")
+    def test_quiz_deduplicates_source_and_oversamples_before_filtering(self, call_openai):
+        call_openai.return_value = json.dumps({"items": []})
         flashcards = [
             {"question": "Question répétée", "answer": "Même réponse", "difficulty": "easy"},
             {"question": "Question répétée reformulée", "answer": "Même réponse", "difficulty": "easy"},
             {"question": "Question distincte", "answer": "Réponse distincte", "difficulty": "medium"},
         ]
 
-        generate_quiz_with_groq(flashcards, count=2)
+        generate_quiz_with_openai(flashcards, count=2)
 
-        prompt = call_groq.call_args.args[0]
+        prompt = call_openai.call_args.args[0]
         self.assertEqual(prompt.count('"question": "Question répétée"'), 1)
         self.assertNotIn("Question répétée reformulée", prompt)
         self.assertIn("Génère EXACTEMENT 2 questions", prompt)
 
-    @patch("ai_service.quiz.call_groq_json")
-    def test_quiz_generation_uses_bounded_balanced_batches(self, call_groq):
+    @patch("ai_service.quiz.call_openai_json")
+    def test_quiz_generation_uses_bounded_balanced_batches(self, call_openai):
         flashcards = [
             {
                 "question": f"Question source distincte numéro {index}",
@@ -169,21 +169,21 @@ class JsonExtractionTests(SimpleTestCase):
             next_question += 10
             return json.dumps({"items": batch})
 
-        call_groq.side_effect = response
+        call_openai.side_effect = response
 
-        questions = generate_quiz_with_groq(flashcards, count=25)
+        questions = generate_quiz_with_openai(flashcards, count=25)
 
         self.assertEqual(len(questions), 25)
-        self.assertEqual(call_groq.call_count, 3)
-        prompts = [call.args[0] for call in call_groq.call_args_list]
+        self.assertEqual(call_openai.call_count, 3)
+        prompts = [call.args[0] for call in call_openai.call_args_list]
         self.assertTrue(all(prompt.count('"question": "Question source') == 20 for prompt in prompts))
         self.assertIn("Génère EXACTEMENT 10 questions", prompts[0])
         self.assertIn("Génère EXACTEMENT 5 questions", prompts[2])
         self.assertNotEqual(prompts[0], prompts[1])
         self.assertIn(questions[0]["question"], prompts[1])
 
-    @patch("ai_service.quiz.call_groq_json", return_value='{"items": []}')
-    def test_quiz_generation_stops_after_bounded_attempts(self, call_groq):
+    @patch("ai_service.quiz.call_openai_json", return_value='{"items": []}')
+    def test_quiz_generation_stops_after_bounded_attempts(self, call_openai):
         flashcards = [
             {
                 "question": f"Question source distincte numéro {index}",
@@ -193,13 +193,13 @@ class JsonExtractionTests(SimpleTestCase):
             for index in range(50)
         ]
 
-        questions = generate_quiz_with_groq(flashcards, count=25)
+        questions = generate_quiz_with_openai(flashcards, count=25)
 
         self.assertEqual(questions, [])
-        self.assertEqual(call_groq.call_count, 5)
+        self.assertEqual(call_openai.call_count, 5)
         self.assertTrue(all(
             "Génère EXACTEMENT 10 questions" in call.args[0]
-            for call in call_groq.call_args_list
+            for call in call_openai.call_args_list
         ))
 
 
@@ -256,22 +256,22 @@ class ChunkingTests(SimpleTestCase):
 
         self.assertIn(marker, prompt)
 
-    @patch("ai_service.pdf_chat.call_groq_text", return_value="Réponse")
-    def test_pdf_chat_makes_one_call_with_relevant_late_context(self, call_groq):
+    @patch("ai_service.pdf_chat.call_openai_text", return_value="Réponse")
+    def test_pdf_chat_makes_one_call_with_relevant_late_context(self, call_openai):
         text = (
             "Introduction générale sans réponse. " * 20
             + "Le chiffrement asymétrique utilise une clé publique et une clé privée. "
             + "Conclusion générale. " * 20
         )
 
-        answer = ask_pdf_with_groq(text, "Quelle clé utilise le chiffrement asymétrique?")
+        answer = ask_pdf_with_openai(text, "Quelle clé utilise le chiffrement asymétrique?")
 
         self.assertEqual(answer, "Réponse")
-        call_groq.assert_called_once()
-        self.assertIn("clé publique", call_groq.call_args.args[0])
+        call_openai.assert_called_once()
+        self.assertIn("clé publique", call_openai.call_args.args[0])
 
-    @patch("ai_service.planning.call_groq_json", return_value='{"sessions": []}')
-    def test_planning_samples_across_full_deck(self, call_groq):
+    @patch("ai_service.planning.call_openai_json", return_value='{"sessions": []}')
+    def test_planning_samples_across_full_deck(self, call_openai):
         flashcards = [
             {
                 "question": f"Question distincte {index}",
@@ -281,7 +281,7 @@ class ChunkingTests(SimpleTestCase):
             for index in range(30)
         ]
 
-        generate_revision_plan_with_groq(
+        generate_revision_plan_with_openai(
             "Deck",
             flashcards,
             [{"day": "Lundi", "start_time": "09:00", "end_time": "10:00"}],
@@ -289,7 +289,7 @@ class ChunkingTests(SimpleTestCase):
             "medium",
         )
 
-        prompt = call_groq.call_args.args[0]
+        prompt = call_openai.call_args.args[0]
         self.assertIn("Question distincte 0", prompt)
         self.assertIn("Question distincte 29", prompt)
 
@@ -309,8 +309,8 @@ class FlashcardPipelineTests(SimpleTestCase):
         "ai_service.pipeline.build_balanced_contexts",
         return_value=["Début du cours.", "Fin du cours."],
     )
-    @patch("ai_service.pipeline.extract_flashcard_facts_with_groq")
-    @patch("ai_service.pipeline.generate_flashcards_from_facts_with_groq")
+    @patch("ai_service.pipeline.extract_flashcard_facts_with_openai")
+    @patch("ai_service.pipeline.generate_flashcards_from_facts_with_openai")
     def test_pipeline_extracts_facts_then_generates_cards_once(
         self, generate, extract_facts, _chunks
     ):
@@ -340,10 +340,10 @@ class FlashcardPipelineTests(SimpleTestCase):
 
     @patch("ai_service.pipeline.build_balanced_contexts", return_value=["Cours utile"])
     @patch(
-        "ai_service.pipeline.extract_flashcard_facts_with_groq",
+        "ai_service.pipeline.extract_flashcard_facts_with_openai",
         return_value=[f"Fait fiable numéro {index}" for index in range(30)],
     )
-    @patch("ai_service.pipeline.generate_flashcards_from_facts_with_groq")
+    @patch("ai_service.pipeline.generate_flashcards_from_facts_with_openai")
     def test_pipeline_uses_only_one_repair_call_for_missing_cards(
         self, generate, _extract_facts, _chunks
     ):
@@ -371,8 +371,8 @@ class FlashcardPipelineTests(SimpleTestCase):
         "ai_service.pipeline.build_balanced_contexts",
         return_value=[f"Section {index}" for index in range(10)],
     )
-    @patch("ai_service.pipeline.extract_flashcard_facts_with_groq")
-    @patch("ai_service.pipeline.generate_flashcards_from_facts_with_groq", return_value=[])
+    @patch("ai_service.pipeline.extract_flashcard_facts_with_openai")
+    @patch("ai_service.pipeline.generate_flashcards_from_facts_with_openai", return_value=[])
     def test_pipeline_limits_chunks_and_selected_facts(
         self, generate, extract_facts, _chunks
     ):
@@ -393,8 +393,8 @@ class FlashcardPipelineTests(SimpleTestCase):
         self.assertLessEqual(len(facts_sent), 30)
 
     @patch("ai_service.pipeline.build_balanced_contexts", return_value=["Cours utile"])
-    @patch("ai_service.pipeline.generate_flashcards_from_facts_with_groq")
-    @patch("ai_service.pipeline.extract_flashcard_facts_with_groq")
+    @patch("ai_service.pipeline.generate_flashcards_from_facts_with_openai")
+    @patch("ai_service.pipeline.extract_flashcard_facts_with_openai")
     def test_pipeline_stops_immediately_on_fact_extraction_rate_limit(
         self, extract_facts, generate, _chunks
     ):
@@ -411,10 +411,10 @@ class FlashcardPipelineTests(SimpleTestCase):
 
     @patch("ai_service.pipeline.build_balanced_contexts", return_value=["Cours utile"])
     @patch(
-        "ai_service.pipeline.extract_flashcard_facts_with_groq",
+        "ai_service.pipeline.extract_flashcard_facts_with_openai",
         return_value=[f"Fait fiable numéro {index}" for index in range(30)],
     )
-    @patch("ai_service.pipeline.generate_flashcards_from_facts_with_groq")
+    @patch("ai_service.pipeline.generate_flashcards_from_facts_with_openai")
     def test_pipeline_returns_existing_cards_when_repair_is_rate_limited(
         self, generate, _extract_facts, _chunks
     ):
@@ -469,7 +469,7 @@ class SummaryGenerationTests(SimpleTestCase):
             "Idée 1", "Idée 2", "Idée 3", "Idée 4", "À retenir : Idée 5",
         ]
 
-        summary = generate_summary_with_groq("Cours complet.", line_count=5)
+        summary = generate_summary_with_openai("Cours complet.", line_count=5)
 
         self.assertEqual(request_facts.call_count, 3)
         self.assertGreaterEqual(request_facts.call_args_list[0].args[1], 6)
@@ -488,6 +488,6 @@ class SummaryGenerationTests(SimpleTestCase):
             "UDP privilégie une transmission rapide sans connexion",
         ]
 
-        summary = generate_summary_with_groq("Texte trop court.", line_count=10)
+        summary = generate_summary_with_openai("Texte trop court.", line_count=10)
 
         self.assertEqual(len(summary.splitlines()), 2)

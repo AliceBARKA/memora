@@ -31,10 +31,10 @@ from .serializers import (
 
 from ai_service.pdf_extractor import extract_text_from_pdf
 from ai_service.pipeline import build_flashcard_fallbacks, generate_flashcards_pipeline
-from ai_service.pdf_chat import ask_pdf_with_groq
-from ai_service.quiz import generate_personal_quiz_with_groq, generate_quiz_with_groq
+from ai_service.pdf_chat import ask_pdf_with_openai
+from ai_service.quiz import generate_personal_quiz_with_openai, generate_quiz_with_openai
 from ai_service.similarity import contains_similar_choice_set, contains_similar_text
-from ai_service.summary import generate_summary_with_groq
+from ai_service.summary import generate_summary_with_openai
 from ai_service.text_cleaning import canonical_text
 from ai_service.chunking import select_relevant_chunks
 
@@ -444,7 +444,7 @@ def generate_summary_from_course(request, course_id):
         }, status=400)
 
     try:
-        summary = generate_summary_with_groq(
+        summary = generate_summary_with_openai(
             text,
             line_count=line_count,
             instructions=instructions,
@@ -504,7 +504,7 @@ def ask_question_from_course(request, course_id):
         }, status=500)
 
     try:
-        answer = ask_pdf_with_groq(text, question)
+        answer = ask_pdf_with_openai(text, question)
     except Exception as e:
         logger.exception("PDF question answering failed for course %s", course.id)
         return Response({
@@ -545,7 +545,7 @@ def generate_personal_quiz(request):
 
     try:
         generated_questions = generate_complete_set(
-            generate_personal_quiz_with_groq,
+            generate_personal_quiz_with_openai,
             topic,
             count=options["count"],
             difficulty=options["difficulty"],
@@ -634,7 +634,7 @@ def generate_quiz_from_deck(request, deck_id):
     )
 
     try:
-        generated_questions = generate_quiz_with_groq(
+        generated_questions = generate_quiz_with_openai(
             flashcards_data,
             count=effective_count,
             difficulty=options["difficulty"],
@@ -870,7 +870,7 @@ def global_chat(request):
     context = "\n\n".join(context_parts)
     context = context[:4500]
 
-    answer = ask_pdf_with_groq(context, question)
+    answer = ask_pdf_with_openai(context, question)
 
     return Response({
         "question": question,

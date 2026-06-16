@@ -2,7 +2,7 @@ import json
 import math
 
 from .chunking import evenly_select
-from .groq_service import call_groq_json
+from .openai_service import call_openai_json
 from .parsing import extract_json_array
 from .prompts import JSON_ONLY_SYSTEM, build_personal_quiz_prompt, build_quiz_prompt
 from .validators import deduplicate_flashcards, validate_quiz_questions
@@ -24,7 +24,7 @@ def _balanced_flashcard_batch(flashcards, attempt):
     return evenly_select(rotated_flashcards, subset_size)
 
 
-def generate_quiz_with_groq(flashcards, count=10, difficulty="medium", instructions=""):
+def generate_quiz_with_openai(flashcards, count=10, difficulty="medium", instructions=""):
     distinct_flashcards = deduplicate_flashcards(flashcards)
     if not distinct_flashcards or count <= 0:
         return []
@@ -42,7 +42,7 @@ def generate_quiz_with_groq(flashcards, count=10, difficulty="medium", instructi
             "Évite absolument les questions déjà générées suivantes: "
             f"{json.dumps(previous_questions, ensure_ascii=False)}"
         ).strip()
-        content = call_groq_json(
+        content = call_openai_json(
             build_quiz_prompt(
                 _balanced_flashcard_batch(distinct_flashcards, attempt),
                 min(missing_count, QUIZ_BATCH_SIZE),
@@ -60,9 +60,9 @@ def generate_quiz_with_groq(flashcards, count=10, difficulty="medium", instructi
     return validate_quiz_questions(all_questions, count=count)
 
 
-def generate_personal_quiz_with_groq(topic, count=10, difficulty="medium", instructions=""):
+def generate_personal_quiz_with_openai(topic, count=10, difficulty="medium", instructions=""):
     requested_count = _oversampled_count(count)
-    content = call_groq_json(
+    content = call_openai_json(
         build_personal_quiz_prompt(topic, requested_count, difficulty, instructions),
         JSON_ONLY_SYSTEM,
         temperature=0.1,

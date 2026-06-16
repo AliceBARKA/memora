@@ -344,7 +344,7 @@ class CoursesAPITests(TestCase):
         self.assertTrue(response.data["partial_generation"])
         self.assertEqual(deck.flashcards.count(), 1)
 
-    @patch("courses.views.generate_personal_quiz_with_groq")
+    @patch("courses.views.generate_personal_quiz_with_openai")
     def test_personal_quiz_retries_until_requested_count(self, generate):
         generate.side_effect = [
             self.quiz_questions(0, 3),
@@ -376,7 +376,7 @@ class CoursesAPITests(TestCase):
         self.assertIn("Focus fonctions", second_call.kwargs["instructions"])
         self.assertIn("Question 0", second_call.kwargs["instructions"])
 
-    @patch("courses.views.generate_personal_quiz_with_groq")
+    @patch("courses.views.generate_personal_quiz_with_openai")
     def test_large_personal_quiz_is_generated_in_small_batches(self, generate):
         next_question = 0
 
@@ -401,7 +401,7 @@ class CoursesAPITests(TestCase):
             [8, 8, 8, 2],
         )
 
-    @patch("courses.views.generate_quiz_with_groq")
+    @patch("courses.views.generate_quiz_with_openai")
     def test_incomplete_deck_quiz_is_saved_without_repeated_padding(self, generate):
         deck = self.create_deck()
         Flashcard.objects.create(deck=deck, question="Existing", answer="Answer")
@@ -430,7 +430,7 @@ class CoursesAPITests(TestCase):
         self.assertEqual(response.data["effective_count"], 1)
         self.assertEqual(Quiz.objects.count(), 1)
 
-    @patch("courses.views.generate_quiz_with_groq", return_value=[])
+    @patch("courses.views.generate_quiz_with_openai", return_value=[])
     def test_deck_quiz_fills_missing_ai_questions_from_flashcards(self, generate):
         deck = self.create_deck()
         for index in range(5):
@@ -453,7 +453,7 @@ class CoursesAPITests(TestCase):
         saved_questions = QuizQuestion.objects.filter(quiz_id=response.data["id"])
         self.assertTrue(all(len(question.choices) == 4 for question in saved_questions))
 
-    @patch("courses.views.generate_quiz_with_groq", return_value=[])
+    @patch("courses.views.generate_quiz_with_openai", return_value=[])
     def test_deck_quiz_rejects_request_above_flashcard_count(self, generate):
         deck = self.create_deck()
         for index in range(5):
@@ -473,7 +473,7 @@ class CoursesAPITests(TestCase):
         self.assertIn("5", response.data["count"][0])
         generate.assert_not_called()
 
-    @patch("courses.views.generate_quiz_with_groq", return_value=[])
+    @patch("courses.views.generate_quiz_with_openai", return_value=[])
     def test_deck_quiz_allows_count_above_thirty_when_deck_has_enough_cards(self, generate):
         deck = self.create_deck()
         for index in range(37):
@@ -493,7 +493,7 @@ class CoursesAPITests(TestCase):
         self.assertEqual(response.data["effective_count"], 37)
         self.assertEqual(generate.call_args.kwargs["count"], 37)
 
-    @patch("courses.views.generate_quiz_with_groq", return_value=[])
+    @patch("courses.views.generate_quiz_with_openai", return_value=[])
     def test_deck_quiz_rejects_count_above_absolute_maximum(self, generate):
         deck = self.create_deck()
         for index in range(60):
@@ -524,7 +524,7 @@ class CoursesAPITests(TestCase):
         self.assertEqual(response.status_code, 400)
 
     @patch("courses.views.extract_text_from_pdf", return_value="Cours utile")
-    @patch("courses.views.generate_summary_with_groq", return_value="   ")
+    @patch("courses.views.generate_summary_with_openai", return_value="   ")
     def test_empty_summary_does_not_overwrite_existing_summary(self, _generate, _extract):
         course = self.create_course()
         course.summary = "Résumé existant"
@@ -555,7 +555,7 @@ class CoursesAPITests(TestCase):
         self.assertEqual(difficulty_response.status_code, 400)
         self.assertEqual(topic_response.status_code, 400)
 
-    @patch("courses.views.generate_personal_quiz_with_groq", return_value=[])
+    @patch("courses.views.generate_personal_quiz_with_openai", return_value=[])
     def test_personal_quiz_is_saved_without_fabricated_fallback_questions(self, _generate):
         response = self.client.post(
             "/api/courses/generate-personal-quiz/",

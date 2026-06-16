@@ -3,7 +3,7 @@ import math
 import re
 
 from .chunking import build_balanced_contexts, evenly_select
-from .groq_service import call_groq_json
+from .openai_service import call_openai_json
 from .parsing import extract_json_lines
 from .prompts import JSON_ONLY_SYSTEM, build_summary_facts_prompt, build_summary_synthesis_prompt
 from .similarity import contains_similar_text, unique_texts
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 def request_summary_facts(text, fact_count, instructions=""):
     try:
-        content = call_groq_json(
+        content = call_openai_json(
             build_summary_facts_prompt(text, fact_count, instructions),
             JSON_ONLY_SYSTEM,
             temperature=0.15,
@@ -30,7 +30,7 @@ def synthesize_summary_lines(facts, line_count, instructions=""):
     if not facts:
         return []
     try:
-        content = call_groq_json(
+        content = call_openai_json(
             build_summary_synthesis_prompt(facts, line_count, instructions),
             JSON_ONLY_SYSTEM,
             temperature=0.1,
@@ -41,7 +41,7 @@ def synthesize_summary_lines(facts, line_count, instructions=""):
     return extract_json_lines(content, "lines")[:line_count]
 
 
-def generate_summary_with_groq(text, line_count=20, instructions=""):
+def generate_summary_with_openai(text, line_count=20, instructions=""):
     source_chunks = build_balanced_contexts(text, max_contexts=12)
     facts_per_chunk = max(6, min(16, math.ceil(line_count / max(1, len(source_chunks))) + 6))
     facts = []

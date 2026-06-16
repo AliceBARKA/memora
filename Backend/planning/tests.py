@@ -108,7 +108,7 @@ class PlanningAPITests(TestCase):
         self.assertEqual(delete.status_code, 200)
         self.assertFalse(RevisionSession.objects.filter(id=create.data["id"]).exists())
 
-    @patch("planning.views.generate_revision_plan_with_groq")
+    @patch("planning.views.generate_revision_plan_with_openai")
     def test_ai_planning_creates_owner_scoped_sessions_and_todos(self, generate):
         exam_date = timezone.localdate() + timedelta(days=14)
         day_names = [
@@ -152,7 +152,7 @@ class PlanningAPITests(TestCase):
         self.assertIn("Network deck", todo.title)
         self.assertIn("Network deck", todo.description)
 
-    @patch("planning.views.generate_revision_plan_with_groq")
+    @patch("planning.views.generate_revision_plan_with_openai")
     def test_ai_planning_rejects_foreign_deck(self, generate):
         other_course = CoursePDF.objects.create(title="Other", file="other.pdf", user=self.other_user)
         other_deck = Deck.objects.create(
@@ -172,7 +172,7 @@ class PlanningAPITests(TestCase):
         self.assertEqual(response.status_code, 404)
         generate.assert_not_called()
 
-    @patch("planning.views.generate_revision_plan_with_groq")
+    @patch("planning.views.generate_revision_plan_with_openai")
     def test_ai_planning_rejects_malformed_exam_date(self, generate):
         response = self.client.post(
             "/api/planning/generate-ai/",
@@ -183,7 +183,7 @@ class PlanningAPITests(TestCase):
         self.assertEqual(response.status_code, 400)
         generate.assert_not_called()
 
-    @patch("planning.views.generate_revision_plan_with_groq", return_value=["invalid"])
+    @patch("planning.views.generate_revision_plan_with_openai", return_value=["invalid"])
     def test_ai_planning_rejects_malformed_ai_items(self, _generate):
         exam_date = timezone.localdate() + timedelta(days=14)
         Availability.objects.create(

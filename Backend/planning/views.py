@@ -16,7 +16,7 @@ from .serializers import (
 
 from courses.models import Deck
 from todos.models import ToDo
-from ai_service.planning import generate_revision_plan_with_groq
+from ai_service.planning import generate_revision_plan_with_openai
 
 logger = logging.getLogger(__name__)
 
@@ -226,7 +226,7 @@ def generate_ai_revision_plan(request):
         availabilities_by_day.setdefault(availability.day, []).append(availability)
 
     try:
-        ai_sessions = generate_revision_plan_with_groq(
+        ai_sessions = generate_revision_plan_with_openai(
             deck_title=deck.title,
             flashcards=flashcards_data,
             availabilities=availabilities_data,

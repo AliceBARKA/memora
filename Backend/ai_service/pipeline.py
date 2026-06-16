@@ -1,12 +1,12 @@
 import logging
 import math
 
-from groq import RateLimitError
+from openai import RateLimitError
 
 from .chunking import build_balanced_contexts, evenly_select
 from .flashcards import (
-    extract_flashcard_facts_with_groq,
-    generate_flashcards_from_facts_with_groq,
+    extract_flashcard_facts_with_openai,
+    generate_flashcards_from_facts_with_openai,
 )
 from .similarity import unique_texts
 from .text_cleaning import clean_text
@@ -42,7 +42,7 @@ def _select_facts(fact_batches, count):
 
 
 def _generate_cards(facts, count, difficulty, focus, previous_questions=None):
-    return generate_flashcards_from_facts_with_groq(
+    return generate_flashcards_from_facts_with_openai(
         facts,
         count=count,
         difficulty=difficulty,
@@ -67,13 +67,13 @@ def generate_flashcards_pipeline(text, count=10, difficulty="all", focus=""):
     fact_batches = []
     for chunk in source_chunks[:MAX_SOURCE_CHUNKS]:
         try:
-            facts = extract_flashcard_facts_with_groq(
+            facts = extract_flashcard_facts_with_openai(
                 chunk,
                 fact_count=FACTS_PER_CHUNK,
                 focus=focus,
             )
         except RateLimitError:
-            logger.warning("Groq rate limit reached while extracting flashcard facts.")
+            logger.warning("OpenAI rate limit reached while extracting flashcard facts.")
             return []
         except Exception:
             logger.exception("Flashcard fact extraction failed for one source chunk.")
@@ -93,7 +93,7 @@ def generate_flashcards_pipeline(text, count=10, difficulty="all", focus=""):
     try:
         cards = _generate_cards(primary_facts, requested_count, difficulty, focus)
     except RateLimitError:
-        logger.warning("Groq rate limit reached while generating flashcards.")
+        logger.warning("OpenAI rate limit reached while generating flashcards.")
         return []
     except Exception:
         logger.exception("Flashcard generation from facts failed.")
@@ -115,7 +115,7 @@ def generate_flashcards_pipeline(text, count=10, difficulty="all", focus=""):
             previous_questions=previous_questions,
         )
     except RateLimitError:
-        logger.warning("Groq rate limit reached during flashcard repair.")
+        logger.warning("OpenAI rate limit reached during flashcard repair.")
         return cards
     except Exception:
         logger.exception("Flashcard repair call failed.")
