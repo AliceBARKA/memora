@@ -18,7 +18,7 @@ import {
 
 } from "lucide-react";
 import { MemiGuide } from "../../components/AnimatedMemi";
-import { FlashcardGenerationResult } from "../../components/FlashcardGenerationResult";
+//import { FlashcardGenerationResult } from "../../components/FlashcardGenerationResult";
 import { buildFlashcardGenerationResult } from "../../components/flashcardGenerationResult";
 
 const initialSubjects = [];
