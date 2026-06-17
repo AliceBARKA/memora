@@ -8,8 +8,15 @@ from .prompts import (
 )
 from .validators import validate_flashcards
 
+MAX_FLASHCARD_TEXT_CHARS = 12000
+
+
+def limit_text(text):
+    return (text or "")[:MAX_FLASHCARD_TEXT_CHARS]
+
 
 def generate_flashcards_with_openai(text, count=10, difficulty="all", focus=""):
+    text = limit_text(text)
     content = call_openai_json(
         build_flashcards_prompt(text, count, difficulty, focus),
         JSON_ONLY_SYSTEM,
@@ -19,6 +26,7 @@ def generate_flashcards_with_openai(text, count=10, difficulty="all", focus=""):
 
 
 def extract_flashcard_facts_with_openai(text, fact_count=8, focus=""):
+    text = limit_text(text)
     content = call_openai_json(
         build_flashcard_facts_prompt(text, fact_count, focus),
         JSON_ONLY_SYSTEM,
