@@ -1189,8 +1189,14 @@ function CourseDrawer({ course, getSubject, onClose, onRename, onDelete, onGener
 
         <div className="p-8">
           {flashcardGenerationResult ? (
-            <FlashcardGenerationResult result={flashcardGenerationResult} className="mb-5" />
-          ) : (loadingFlashcards || loadingSummary) && (
+  <MemiGuide
+    mood={flashcardGenerationResult.mood}
+    title={flashcardGenerationResult.title}
+    message={flashcardGenerationResult.message}
+    compact
+    className="mb-5"
+  />
+) : (loadingFlashcards || loadingSummary) && (
             <MemiGuide
               mood={loadingSummary ? "thinking" : "working"}
               eyebrow="Memi travaille"
