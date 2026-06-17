@@ -15,9 +15,9 @@ from .validators import deduplicate_flashcards
 
 logger = logging.getLogger(__name__)
 
-MAX_SOURCE_CHUNKS = 8
-FACTS_PER_CHUNK = 8
-SOURCE_CHUNK_SIZE = 4000
+MAX_SOURCE_CHUNKS = 3
+FACTS_PER_CHUNK = 5
+SOURCE_CHUNK_SIZE = 2500
 
 
 def interleave_batches(batches):
