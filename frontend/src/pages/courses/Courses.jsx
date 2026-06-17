@@ -1264,7 +1264,7 @@ function CourseDrawer({ course, getSubject, onClose, onRename, onDelete, onGener
   </button>
   {flashcardsReady && (
   <button
-    onClick={() => window.location.href = "/flashcards"}
+    onClick={() => window.location.href = "/memora/#/flashcards"}
     className="w-full h-12 rounded-2xl bg-[#1E293B] text-white font-bold hover:bg-[#0f172a]"
   >
     Voir les flashcards générées →
