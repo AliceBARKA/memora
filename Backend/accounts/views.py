@@ -1,5 +1,7 @@
 import logging
 import mimetypes
+import os
+import requests
 
 from PIL import Image, UnidentifiedImageError
 from django.contrib.auth.models import User
@@ -23,7 +25,36 @@ from .models import UserProfile
 
 
 logger = logging.getLogger(__name__)
+def send_brevo_email(to_email, to_name, subject, text_content):
+    api_key = getattr(settings, "BREVO_API_KEY", None)
+    if not api_key:
+        raise ValueError("BREVO_API_KEY is missing")
 
+    response = requests.post(
+        "https://api.brevo.com/v3/smtp/email",
+        headers={
+            "accept": "application/json",
+            "api-key": api_key,
+            "content-type": "application/json",
+        },
+        json={
+            "sender": {
+                "name": "Memora",
+                "email": settings.DEFAULT_FROM_EMAIL,
+            },
+            "to": [
+                {
+                    "email": to_email,
+                    "name": to_name,
+                }
+            ],
+            "subject": subject,
+            "textContent": text_content,
+        },
+        timeout=20,
+    )
+
+    response.raise_for_status()
 
 def string_value(data, key, default=""):
     value = data.get(key, default)
@@ -123,19 +154,20 @@ def register(request):
             uid = urlsafe_base64_encode(force_bytes(user.pk))
             token = default_token_generator.make_token(user)
             verification_link = f"{settings.FRONTEND_URL}/verify-email/{uid}/{token}/"
-            send_mail(
-                subject="Vérification de votre compte Memora",
-                message=(
-                    f"Bonjour {get_display_name(user)},\n\n"
-                    f"Bienvenue sur Memora.\n\n"
-                    f"Cliquez sur ce lien pour vérifier votre compte :\n"
-                    f"{verification_link}\n\n"
-                    "Si vous n'êtes pas à l'origine de cette inscription, ignorez ce message."
-                ),
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
-                fail_silently=False,
-            )
+            verification_link = f"{settings.FRONTEND_URL.rstrip('/')}/#/verify-email/{uid}/{token}/"
+
+        send_brevo_email(
+            to_email=user.email,
+            to_name=get_display_name(user),
+            subject="Vérification de votre compte Memora",
+            text_content=(
+                f"Bonjour {get_display_name(user)},\n\n"
+                f"Bienvenue sur Memora.\n\n"
+                f"Cliquez sur ce lien pour vérifier votre compte :\n"
+                f"{verification_link}\n\n"
+                "Si vous n'êtes pas à l'origine de cette inscription, ignorez ce message."
+            ),
+        )
     except Exception:
         logger.exception("Registration verification email failed")
         return Response(
