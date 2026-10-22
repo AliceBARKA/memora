@@ -1,0 +1,14 @@
+@startuml
+actor Utilisateur
+participant Frontend
+participant Backend
+participant OpenAI
+
+Utilisateur -> Frontend : Clique sur "Générer un quiz"
+Frontend -> Backend : POST /api/quiz/generate/
+Backend -> OpenAI : Envoie les flashcards + prompt
+OpenAI --> Backend : Retourne les questions QCM
+Backend -> Backend : Sauvegarde le quiz
+Backend --> Frontend : Retourne le quiz
+Frontend --> Utilisateur : Affiche les questions
+@enduml

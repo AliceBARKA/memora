@@ -1,0 +1,327 @@
+@startuml
+title Diagramme de classes UML - Memora
+
+skinparam packageStyle rectangle
+skinparam classAttributeIconSize 0
+skinparam linetype ortho
+
+package "Memora" {
+
+  package "Frontend\nReact - Interface utilisateur" {
+    class LoginPage
+    class DashboardPage
+    class CoursesPage
+    class FlashcardsPage
+    class QuizPage
+    class PlanningPage
+    class TodoPage
+    class ForumPage
+    class GlobalChatPage
+
+    class Navbar
+    class Button
+    class Card
+    class Form
+    class MemiGuide
+
+    class ApiClient {
+      +sendRequest()
+      +getData()
+      +postData()
+      +uploadFile()
+    }
+  }
+
+  package "Backend\nDjango REST API" {
+    class UsersModule {
+      +register()
+      +verifyEmail()
+      +login()
+      +logout()
+      +resetPassword()
+    }
+
+    class CoursesModule {
+      +uploadPDF()
+      +getCourses()
+      +updateCourse()
+      +deleteCourse()
+      +extractText()
+      +generateSummary()
+      +askCourseQuestion()
+      +askGlobalQuestion()
+    }
+
+    class FlashcardsModule {
+      +generateFlashcards()
+      +createFlashcard()
+      +deleteFlashcard()
+    }
+
+    class QuizzesModule {
+      +generateQuiz()
+      +submitQuiz()
+      +calculateScore()
+    }
+
+    class PlanningModule {
+      +createPlanning()
+      +addAvailability()
+      +generateAIPlanning()
+      +addStudySession()
+    }
+
+    class TodosModule {
+      +createTask()
+      +updateTask()
+      +deleteTask()
+    }
+
+    class ForumModule {
+      +createPost()
+      +listPosts()
+      +addComment()
+      +listComments()
+    }
+
+    class ApiRoutes {
+      +defineRoutes()
+    }
+  }
+
+  package "Services externes" {
+    class OpenAIService {
+      +generateFlashcards(text)
+      +generateQuiz(text)
+      +generateSummary(text)
+      +answerQuestion(context, question)
+    }
+
+    class BrevoEmailService {
+      +sendVerificationEmail()
+      +sendResetPasswordEmail()
+    }
+
+    class Prompts {
+      +flashcardPrompt()
+      +quizPrompt()
+      +summaryPrompt()
+      +chatPrompt()
+    }
+
+    class TextCleaning {
+      +cleanText(text)
+    }
+
+    class Chunking {
+      +splitText(text)
+    }
+
+    class PDFParser {
+      +extractTextFromPDF()
+    }
+  }
+
+  package "Database\nSQLite / PostgreSQL" {
+    class User {
+      +id: int
+      +username: string
+      +email: string
+      +password: string
+      +role: string
+      +is_active: boolean
+    }
+
+    class Folder {
+      +id: int
+      +name: string
+      +created_at: datetime
+    }
+
+    class CoursePDF {
+      +id: int
+      +title: string
+      +subject: string
+      +file: file
+      +summary: text
+      +uploaded_at: datetime
+    }
+
+    class Deck {
+      +id: int
+      +title: string
+      +description: string
+      +created_at: datetime
+    }
+
+    class Flashcard {
+      +id: int
+      +question: string
+      +answer: string
+      +difficulty: string
+      +created_at: datetime
+    }
+
+    class Quiz {
+      +id: int
+      +title: string
+      +subject: string
+      +created_at: datetime
+    }
+
+    class QuizQuestion {
+      +id: int
+      +question: text
+      +choices: text
+      +correct_answer: text
+    }
+
+    class QuizResult {
+      +id: int
+      +score: int
+      +correct_answers: int
+      +passed_at: datetime
+    }
+
+    class Availability {
+      +id: int
+      +day: string
+      +start_time: time
+      +end_time: time
+    }
+
+    class RevisionPlan {
+      +id: int
+      +title: string
+      +description: string
+      +created_at: datetime
+    }
+
+    class RevisionSession {
+      +id: int
+      +revision_date: date
+      +start_time: time
+      +end_time: time
+      +status: string
+    }
+
+    class Todo {
+      +id: int
+      +title: string
+      +description: string
+      +due_date: date
+      +status: string
+      +priority: string
+    }
+
+    class ForumPost {
+      +id: int
+      +title: string
+      +content: text
+      +created_at: datetime
+    }
+
+    class ForumComment {
+      +id: int
+      +content: text
+      +created_at: datetime
+    }
+
+    class AIConversation {
+      +id: int
+      +title: string
+      +scope: string
+      +created_at: datetime
+    }
+
+    class AIMessage {
+      +id: int
+      +role: string
+      +content: text
+      +created_at: datetime
+    }
+  }
+
+  package "Docs\nDocuments du projet" {
+    class CahierDesCharges
+    class CahierAnalyse
+    class UMLDocs
+    class TestsDocs
+    class ManuelUtilisateur
+    class ManuelExploitation
+    class RapportFinal
+  }
+}
+
+ApiClient --> ApiRoutes : appels HTTP
+
+ApiRoutes --> UsersModule
+ApiRoutes --> CoursesModule
+ApiRoutes --> FlashcardsModule
+ApiRoutes --> QuizzesModule
+ApiRoutes --> PlanningModule
+ApiRoutes --> TodosModule
+ApiRoutes --> ForumModule
+
+CoursesModule --> PDFParser : extrait le texte
+CoursesModule --> TextCleaning : nettoie le texte
+CoursesModule --> Chunking : découpe le texte
+CoursesModule --> OpenAIService : résumé / questions IA
+
+FlashcardsModule --> OpenAIService : génère
+QuizzesModule --> OpenAIService : génère
+PlanningModule --> OpenAIService : planifie
+UsersModule --> BrevoEmailService : envoie emails
+
+OpenAIService --> Prompts : utilise
+OpenAIService --> Flashcard : crée
+OpenAIService --> QuizQuestion : crée
+OpenAIService --> AIMessage : répond
+
+UsersModule --> User
+CoursesModule --> CoursePDF
+CoursesModule --> Folder
+FlashcardsModule --> Deck
+FlashcardsModule --> Flashcard
+QuizzesModule --> Quiz
+QuizzesModule --> QuizQuestion
+QuizzesModule --> QuizResult
+PlanningModule --> Availability
+PlanningModule --> RevisionPlan
+PlanningModule --> RevisionSession
+TodosModule --> Todo
+ForumModule --> ForumPost
+ForumModule --> ForumComment
+CoursesModule --> AIConversation
+CoursesModule --> AIMessage
+
+User "1" -- "*" Folder
+User "1" -- "*" CoursePDF
+Folder "1" -- "*" CoursePDF
+
+User "1" -- "*" Deck
+CoursePDF "1" -- "*" Deck
+Deck "1" -- "*" Flashcard
+
+Deck "1" -- "*" Quiz
+Quiz "1" -- "*" QuizQuestion
+User "1" -- "*" QuizResult
+Quiz "1" -- "*" QuizResult
+
+User "1" -- "*" Availability
+User "1" -- "*" RevisionPlan
+RevisionPlan "1" -- "*" RevisionSession
+Deck "1" -- "*" RevisionSession
+
+User "1" -- "*" Todo
+RevisionSession "0..1" -- "*" Todo
+
+User "1" -- "*" ForumPost
+ForumPost "1" -- "*" ForumComment
+User "1" -- "*" ForumComment
+
+User "1" -- "*" AIConversation
+CoursePDF "0..1" -- "*" AIConversation
+AIConversation "1" -- "*" AIMessage
+
+@enduml

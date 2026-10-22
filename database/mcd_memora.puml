@@ -1,0 +1,196 @@
+@startuml
+title MCD — Memora
+
+hide circle
+skinparam linetype ortho
+skinparam entity {
+  BackgroundColor White
+  BorderColor Black
+  FontColor Black
+}
+
+entity "USER" as USER {
+  * id : int <<PK>>
+  --
+  username : string
+  email : string
+  password : string
+  role : string
+  is_active : boolean
+}
+
+entity "FOLDER" as FOLDER {
+  * id : int <<PK>>
+  --
+  name : string
+  created_at : datetime
+  user_id : int <<FK>>
+}
+
+entity "COURSE_PDF" as COURSE_PDF {
+  * id : int <<PK>>
+  --
+  title : string
+  subject : string
+  file : string
+  summary : text
+  uploaded_at : datetime
+  user_id : int <<FK>>
+  folder_id : int <<FK>>
+}
+
+entity "DECK" as DECK {
+  * id : int <<PK>>
+  --
+  title : string
+  description : string
+  created_at : datetime
+  user_id : int <<FK>>
+  course_pdf_id : int <<FK>>
+}
+
+entity "FLASHCARD" as FLASHCARD {
+  * id : int <<PK>>
+  --
+  question : string
+  answer : string
+  difficulty : string
+  created_at : datetime
+  deck_id : int <<FK>>
+}
+
+entity "QUIZ" as QUIZ {
+  * id : int <<PK>>
+  --
+  title : string
+  subject : string
+  created_at : datetime
+  deck_id : int <<FK>>
+}
+
+entity "QUIZ_QUESTION" as QUIZ_QUESTION {
+  * id : int <<PK>>
+  --
+  question : text
+  correct_answer : text
+  choices : text
+  quiz_id : int <<FK>>
+}
+
+entity "QUIZ_RESULT" as QUIZ_RESULT {
+  * id : int <<PK>>
+  --
+  score : int
+  correct_answers : int
+  passed_at : datetime
+  user_id : int <<FK>>
+  quiz_id : int <<FK>>
+}
+
+entity "AVAILABILITY" as AVAILABILITY {
+  * id : int <<PK>>
+  --
+  day : string
+  start_time : time
+  end_time : time
+  user_id : int <<FK>>
+}
+
+entity "REVISION_PLAN" as REVISION_PLAN {
+  * id : int <<PK>>
+  --
+  title : string
+  created_at : datetime
+  user_id : int <<FK>>
+}
+
+entity "REVISION_SESSION" as REVISION_SESSION {
+  * id : int <<PK>>
+  --
+  revision_date : date
+  start_time : time
+  end_time : time
+  status : string
+  revision_plan_id : int <<FK>>
+  deck_id : int <<FK>>
+}
+
+entity "TODO" as TODO {
+  * id : int <<PK>>
+  --
+  title : string
+  description : string
+  due_date : date
+  status : string
+  priority : string
+  user_id : int <<FK>>
+  revision_session_id : int <<FK>>
+}
+
+entity "FORUM_POST" as FORUM_POST {
+  * id : int <<PK>>
+  --
+  title : string
+  content : text
+  created_at : datetime
+  user_id : int <<FK>>
+}
+
+entity "FORUM_COMMENT" as FORUM_COMMENT {
+  * id : int <<PK>>
+  --
+  content : text
+  created_at : datetime
+  user_id : int <<FK>>
+  post_id : int <<FK>>
+}
+
+entity "AI_CONVERSATION" as AI_CONVERSATION {
+  * id : int <<PK>>
+  --
+  title : string
+  scope : string
+  created_at : datetime
+  user_id : int <<FK>>
+  course_pdf_id : int <<FK>>
+}
+
+entity "AI_MESSAGE" as AI_MESSAGE {
+  * id : int <<PK>>
+  --
+  role : string
+  content : text
+  created_at : datetime
+  conversation_id : int <<FK>>
+}
+
+USER ||--o{ COURSE_PDF : importe
+USER ||--o{ FOLDER : cree
+FOLDER ||--o{ COURSE_PDF : contient
+
+USER ||--o{ DECK : possede
+COURSE_PDF ||--o{ DECK : genere
+DECK ||--o{ FLASHCARD : contient
+
+DECK ||--o{ QUIZ : sert_a
+QUIZ ||--o{ QUIZ_QUESTION : contient
+USER ||--o{ QUIZ_RESULT : obtient
+QUIZ ||--o{ QUIZ_RESULT : produit
+
+USER ||--o{ AVAILABILITY : definit
+USER ||--o{ REVISION_PLAN : cree
+REVISION_PLAN ||--o{ REVISION_SESSION : contient
+DECK ||--o{ REVISION_SESSION : est_revise_dans
+
+USER ||--o{ TODO : possede
+REVISION_SESSION ||--o{ TODO : genere
+
+USER ||--o{ FORUM_POST : publie
+FORUM_POST ||--o{ FORUM_COMMENT : recoit
+USER ||--o{ FORUM_COMMENT : ecrit
+
+USER ||--o{ AI_CONVERSATION : lance
+AI_CONVERSATION ||--o{ AI_MESSAGE : contient
+COURSE_PDF ||--o{ AI_CONVERSATION : concerne
+
+@enduml

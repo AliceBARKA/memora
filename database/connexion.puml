@@ -1,0 +1,12 @@
+@startuml
+actor Utilisateur
+participant Frontend
+participant Backend
+
+Utilisateur -> Frontend : Saisit email + mot de passe
+Frontend -> Backend : POST /api/auth/login/
+Backend -> Backend : Vérifie les credentials
+Backend --> Frontend : Retourne le token JWT
+Frontend -> Frontend : Stocke le token
+Frontend --> Utilisateur : Redirige vers le dashboard
+@enduml

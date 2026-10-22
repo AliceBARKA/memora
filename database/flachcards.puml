@@ -1,0 +1,15 @@
+@startuml
+actor Utilisateur
+participant Frontend
+participant Backend
+participant OpenAI
+
+Utilisateur -> Frontend : Importe un PDF
+Frontend -> Backend : POST /api/courses/
+Backend -> Backend : Extrait le texte du PDF
+Backend -> OpenAI : Envoie le texte + prompt
+OpenAI --> Backend : Retourne les flashcards
+Backend -> Backend : Sauvegarde en BDD
+Backend --> Frontend : Retourne les flashcards
+Frontend --> Utilisateur : Affiche les flashcards
+@enduml
